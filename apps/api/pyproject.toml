@@ -1,0 +1,48 @@
+[project]
+name = "nova-api"
+version = "0.1.0"
+description = "Nova backend (Django + DRF)"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.44.0",
+    "celery[redis]>=5.7.0",
+    "cryptography>=50.0.2",
+    "django~=5.2",
+    "django-allauth[headless]>=65.21.1",
+    "django-cors-headers>=4.9.0",
+    "django-environ>=0.14.0",
+    "django-storages[s3]>=1.14.6",
+    "djangorestframework>=3.18.3",
+    "drf-spectacular>=0.30.0",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.8",
+    "resend>=2.53.2",
+    "uuid6>=2025.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "factory-boy>=3.3.3",
+    "pytest>=9.2.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "DJ"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/migrations/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nova", "core", "payments"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "nova.settings.test"
+python_files = ["test_*.py", "*_test.py", "tests.py"]
+addopts = "--strict-markers"

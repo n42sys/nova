@@ -40,10 +40,10 @@ Set up the monorepo, the Django project and tooling. No models yet.
 - Empty `core` and `payments` apps created and installed.
 
 **Acceptance**
-- [ ] `docker compose up -d` brings up healthy Postgres and Redis.
-- [ ] `uv run python manage.py check` passes (do **not** run `migrate` yet).
-- [ ] `uv run pytest` runs and reports no tests collected without error.
-- [ ] `ruff check` and `ruff format --check` pass.
+- [x] `docker compose up -d` brings up healthy Postgres and Redis.
+- [x] `uv run python manage.py check` passes (do **not** run `migrate` yet).
+- [x] `uv run pytest` runs and reports no tests collected without error.
+- [x] `ruff check` and `ruff format --check` pass.
 
 ## T1 — Core foundations and custom User
 
