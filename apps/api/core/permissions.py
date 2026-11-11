@@ -8,7 +8,7 @@ from core.models import Role
 
 if TYPE_CHECKING:
     from core.context import RequestContext
-    from core.models import Site
+    from core.models import Membership, Site
 
 
 class Perm(StrEnum):
@@ -128,6 +128,17 @@ ORG_ONLY_PERMS: frozenset[Perm] = frozenset(
 )
 
 
+def member_has_perm(membership: Membership | None, perm: Perm, site: Site | None = None) -> bool:
+    """Whether `membership` holds `perm` (on `site`, if given). See `require()`."""
+    if membership is None:
+        return False
+    if perm in ORG_ONLY_PERMS or site is None:
+        role = Role(membership.org_role) if membership.org_role else None
+    else:
+        role = membership.effective_role(site)
+    return role is not None and perm in ROLE_PERMS[role]
+
+
 def require(ctx: RequestContext, perm: Perm, site: Site | None = None) -> None:
     """Raise PermissionDenied unless the acting member holds `perm` (on `site`, if given).
 
@@ -135,14 +146,5 @@ def require(ctx: RequestContext, perm: Perm, site: Site | None = None) -> None:
     per site: SiteRole -> org_role -> no access. Callers must already have scoped `site`
     to `ctx.organization` (cross-tenant lookups are a 404 before this point).
     """
-    membership = ctx.membership
-    if membership is None:
-        raise PermissionDenied(details={"permission": perm.value})
-
-    if perm in ORG_ONLY_PERMS or site is None:
-        role = Role(membership.org_role) if membership.org_role else None
-    else:
-        role = membership.effective_role(site)
-
-    if role is None or perm not in ROLE_PERMS[role]:
+    if not member_has_perm(ctx.membership, perm, site):
         raise PermissionDenied(details={"permission": perm.value})

@@ -94,12 +94,12 @@ Four fixed roles, checked in the service layer so the API, admin UI and backgrou
 | Create and revoke API tokens | Yes | Yes | No | No |
 | Edit organization details (org-only) | Yes | Yes | No | No |
 | View members (org-only) | Yes | Yes | No | No |
-| Invite members, change roles below own (org-only) | Yes | Yes (not to owner) | No | No |
+| Invite members, change roles below own (org-only) | Yes | Yes (roles below admin only) | No | No |
 | View audit log (org-only) | Yes | Yes | No | No |
 | Add or change payment accounts (org-only) | Yes | No | No | No |
 | Transfer ownership, delete organization (org-only) | Yes | No | No | No |
 
-Rows marked *org-only* always use `org_role`, never a site override. Every organization must always have at least one owner; services refuse to demote or remove the last one. n42sys staff (`User.is_staff`) get no silent bypass; support access will be an explicit, audited action.
+Rows marked *org-only* always use `org_role`, never a site override. Admins manage only roles below their own: they grant only `editor` or `event_staff` (as an org role or a site role) and cannot change, remove or edit the site roles of any member whose `org_role` is admin or owner; only owners grant, change or remove owner and admin. Every organization must always have at least one owner; services refuse to demote or remove the last one. n42sys staff (`User.is_staff`) get no silent bypass; support access will be an explicit, audited action.
 
 **Enforcement pattern**
 

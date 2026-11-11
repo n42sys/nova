@@ -20,6 +20,7 @@ class Role(models.TextChoices):
 
 
 SITE_ROLES = tuple(r for r in Role if r != Role.OWNER)  # ordered: used in a constraint
+SITE_ROLE_CHOICES = [(role.value, role.label) for role in SITE_ROLES]
 
 
 class Membership(TenantModel):
@@ -63,9 +64,7 @@ class SiteRole(TenantModel):
 
     membership = models.ForeignKey(Membership, on_delete=models.CASCADE, related_name="site_roles")
     site = models.ForeignKey("core.Site", on_delete=models.PROTECT, related_name="site_roles")
-    role = models.CharField(
-        max_length=20, choices=[(r.value, r.label) for r in Role if r in SITE_ROLES]
-    )
+    role = models.CharField(max_length=20, choices=SITE_ROLE_CHOICES)
 
     class Meta(TenantModel.Meta):
         constraints = [

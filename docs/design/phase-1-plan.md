@@ -128,7 +128,7 @@ All under `/api/manage/orgs/{org}/`. Services in `core/services/`, selectors in 
 | PUT, DELETE | `/members/{membership_id}/site-roles/{site_id}/` | `MEMBERS_MANAGE` |
 | GET | `/audit-log/` | `AUDIT_VIEW` |
 
-Rules: admins cannot grant or remove `owner`; the last owner cannot be demoted or removed; a member cannot change their own role; site delete is a soft delete (`status = archived`) in Phase 1. Every write is audited.
+Rules: admins grant only `editor` or `event_staff` (org role or site role), cannot change, remove or edit the site roles of members whose `org_role` is admin or owner, and only owners grant, change or remove `owner` and `admin`; the last owner cannot be demoted or removed; a member cannot change their own role; site delete is a soft delete (`status = archived`) in Phase 1. Every write is audited.
 
 - Promoting a member to `owner` deletes their `SiteRole` rows in the same transaction (owners never hold site roles).
 - The site service validates `timezone` against `zoneinfo.available_timezones()`.
@@ -138,12 +138,12 @@ Rules: admins cannot grant or remove `owner`; the last owner cannot be demoted o
 - `core/tests/test_isolation.py`: fixtures build org A and org B with identical data (sites, members, site roles). A parametrised test hits **every** management endpoint as a member of A against B's IDs and slugs and asserts 404 with no B data in the body. Adding an endpoint without registering it here must fail a test (collect URL patterns under `/api/manage/` and compare against the registered list).
 
 **Acceptance**
-- [ ] Service tests for each rule above.
-- [ ] Isolation suite green and covering every route.
+- [x] Service tests for each rule above.
+- [x] Isolation suite green and covering every route.
 
 ## T7 — Invitations
 
-- `Invitation(TenantModel)` per design doc, with `org_role` (nullable) and `site_roles` JSONB (`[{"site_id", "role"}]`). Validation: at least one of `org_role` or `site_roles`; `owner` only as `org_role`, and only invitable by an owner.
+- `Invitation(TenantModel)` per design doc, with `org_role` (nullable) and `site_roles` JSONB (`[{"site_id", "role"}]`). Validation: at least one of `org_role` or `site_roles`; `owner` only as `org_role`. Only owners can invite as `owner` or `admin` (org or site role); admins invite only `editor` / `event_staff`.
 - Token: 32 random bytes, URL-safe; store SHA-256 hash; 7-day expiry; re-inviting the same email revokes the previous open invite.
 - Endpoints: `GET/POST /api/manage/orgs/{org}/invitations/`, `DELETE …/invitations/{id}/`, `POST …/invitations/{id}/resend/`, and public `GET /api/manage/invitations/{token}/` (preview: org name, inviter, role) + `POST /api/manage/invitations/{token}/accept/` (requires a logged-in user whose email matches).
 - Accept runs in one transaction: create `Membership` (or update an existing one, merging roles), create `SiteRole` rows, mark accepted, audit.
@@ -196,7 +196,7 @@ Rules: admins cannot grant or remove `owner`; the last owner cannot be demoted o
 
 - `@extend_schema` on every view; component names stable.
 - `packages/api-types`: `package.json` with a `generate` script running `openapi-typescript openapi.yaml -o src/schema.d.ts`; export a typed `openapi-fetch` client factory.
-- Add a test that generates the schema and fails on spectacular warnings.
+- Add a test that generates the schema and fails on spectacular warnings. (Added early in T6 as `core/tests/test_openapi.py`; every task keeps it green.)
 
 **Acceptance**
 - [ ] `spectacular --validate --fail-on-warn` passes.
@@ -244,4 +244,5 @@ Next: Phase 2 (forms), then Phase 3 (events with free RSVP, reusing forms for re
 
 Carried forward from Phase 1:
 
+- **Backlog: leave organization endpoint** (with the last-owner rule). Members cannot remove themselves through the member endpoints.
 - **Phase 3 needs an event staff assignment model.** `EVENTS_VIEW_ASSIGNED` and `ATTENDEES_VIEW_ASSIGNED` (granted to event staff) must filter to the member's assigned events unless the broad `EVENTS_VIEW` / `ATTENDEES_VIEW` is also held. `TICKETS_CHECK_IN` for event staff must likewise be limited to assigned events.

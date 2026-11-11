@@ -1,3 +1,5 @@
+import uuid
+
 from core.models import Membership, Organization, User
 
 
@@ -21,4 +23,24 @@ def list_memberships_for_user(user: User) -> list[Membership]:
         user.memberships.select_related("organization")
         .prefetch_related("site_roles__site")
         .order_by("organization__name")
+    )
+
+
+def list_members(org: Organization) -> list[Membership]:
+    """Every member of `org` with user, site roles and sites loaded, by email."""
+    return list(
+        Membership.objects.for_org(org)
+        .select_related("user")
+        .prefetch_related("site_roles__site")
+        .order_by("user__email")
+    )
+
+
+def get_member(org: Organization, membership_id: uuid.UUID) -> Membership | None:
+    return (
+        Membership.objects.for_org(org)
+        .filter(id=membership_id)
+        .select_related("user")
+        .prefetch_related("site_roles__site")
+        .first()
     )

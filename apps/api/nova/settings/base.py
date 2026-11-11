@@ -151,4 +151,11 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Nova API",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Stable component names for choice sets shared by several fields.
+    "ENUM_NAME_OVERRIDES": {
+        "RoleEnum": "core.models.Role",
+        "SiteRoleEnum": "core.models.SITE_ROLE_CHOICES",
+        "OrganizationStatusEnum": "core.models.Organization.Status",
+        "SiteStatusEnum": "core.models.Site.Status",
+    },
 }

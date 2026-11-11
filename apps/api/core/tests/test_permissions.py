@@ -33,7 +33,7 @@ ROLE_TABLE = """
 | Create and revoke API tokens | Yes | Yes | No | No |
 | Edit organization details (org-only) | Yes | Yes | No | No |
 | View members (org-only) | Yes | Yes | No | No |
-| Invite members, change roles below own (org-only) | Yes | Yes (not to owner) | No | No |
+| Invite members, change roles below own (org-only) | Yes | Yes (roles below admin only) | No | No |
 | View audit log (org-only) | Yes | Yes | No | No |
 | Add or change payment accounts (org-only) | Yes | No | No | No |
 | Transfer ownership, delete organization (org-only) | Yes | No | No | No |
