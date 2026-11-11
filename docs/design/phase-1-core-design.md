@@ -73,7 +73,7 @@ Ten models make up the core. All primary keys are UUIDv7 (time-ordered, safe to 
 | `AuditLog` | `organization`, `actor_user`, `actor_token`, `action`, `target_type`, `target_id`, `metadata` (JSONB), `ip`, `created_at` | Append-only. Indexed on `(organization, created_at)`. |
 | `PaymentAccount` | `organization`, `provider` (paystack, daraja), `public_key`, `secret_key_encrypted`, `status` (pending, verified, disabled), `verified_at` | Secret is Fernet-encrypted and never returned by any API. Unique `(organization, provider)`. |
 
-**Effective role on a site** = the `SiteRole` for that site if one exists, otherwise `org_role`, otherwise no access. Org-level actions use `org_role` only. Example: someone can be `editor` on a client's main site and `event_staff` on its events site, with no org role at all.
+**Effective role on a site** = `owner` if `org_role` is owner (owners never hold site roles), otherwise the `SiteRole` for that site if one exists, otherwise `org_role`, otherwise no access. Org-level actions use `org_role` only. Example: someone can be `editor` on a client's main site and `event_staff` on its events site, with no org role at all.
 
 **Deliberate omissions:** no `Plan` or `Subscription` models yet; `features` covers module toggles until billing exists.
 
@@ -92,6 +92,8 @@ Four fixed roles, checked in the service layer so the API, admin UI and backgrou
 | Check in tickets | Yes | Yes | Yes | Yes |
 | Create sites, change site settings | Yes | Yes | No | No |
 | Create and revoke API tokens | Yes | Yes | No | No |
+| Edit organization details (org-only) | Yes | Yes | No | No |
+| View members (org-only) | Yes | Yes | No | No |
 | Invite members, change roles below own (org-only) | Yes | Yes (not to owner) | No | No |
 | View audit log (org-only) | Yes | Yes | No | No |
 | Add or change payment accounts (org-only) | Yes | No | No | No |

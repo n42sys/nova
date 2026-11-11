@@ -75,8 +75,8 @@ Must be finished before the first `migrate`.
 - Factories for `Site`, `Membership` and `SiteRole` (`Organization` and `User` factories exist from T1).
 
 **Acceptance**
-- [ ] Tests for every constraint above, including the cross-org `SiteRole` rejection.
-- [ ] Tests for `effective_role`: site override wins; falls back to `org_role`; `None` when neither exists; `owner` cannot be a site role.
+- [x] Tests for every constraint above, including the cross-org `SiteRole` rejection.
+- [x] Tests for `effective_role`: site override wins; falls back to `org_role`; `None` when neither exists; `owner` cannot be a site role.
 
 ## T3 — Permissions
 
@@ -85,9 +85,9 @@ Must be finished before the first `migrate`.
 - Last-owner protection lives in the membership services (T6), not here.
 
 **Acceptance**
-- [ ] Matrix test: parametrised over every `(Role, Perm)` pair, asserts allow/deny matches a literal copy of the design doc table kept in the test file.
-- [ ] Test: an org-only perm ignores a site override (an `event_staff` site role can never reach `PAYMENTS_MANAGE` via a site).
-- [ ] Test: a member with only a `SiteRole` on site A is denied on site B.
+- [x] Matrix test: parametrised over every `(Role, Perm)` pair, asserts allow/deny matches a literal copy of the design doc table kept in the test file.
+- [x] Test: an org-only perm ignores a site override (an `event_staff` site role can never reach `PAYMENTS_MANAGE` via a site).
+- [x] Test: a member with only a `SiteRole` on site A is denied on site B.
 
 ## T4 — Audit log
 
@@ -128,6 +128,11 @@ All under `/api/manage/orgs/{org}/`. Services in `core/services/`, selectors in 
 | GET | `/audit-log/` | `AUDIT_VIEW` |
 
 Rules: admins cannot grant or remove `owner`; the last owner cannot be demoted or removed; a member cannot change their own role; site delete is a soft delete (`status = archived`) in Phase 1. Every write is audited.
+
+- Promoting a member to `owner` deletes their `SiteRole` rows in the same transaction (owners never hold site roles).
+- The site service validates `timezone` against `zoneinfo.available_timezones()`.
+- Public member services wrap `core.services.memberships._set_site_role` with `require()` and `audit()`.
+- There is no `ORG_VIEW` perm: `GET /` is open to any member of the org, and `GET /sites/` returns only sites where the member has `SITE_VIEW`. Test it with a site-only member (null `org_role`).
 
 - `core/tests/test_isolation.py`: fixtures build org A and org B with identical data (sites, members, site roles). A parametrised test hits **every** management endpoint as a member of A against B's IDs and slugs and asserts 404 with no B data in the body. Adding an endpoint without registering it here must fail a test (collect URL patterns under `/api/manage/` and compare against the registered list).
 
@@ -232,3 +237,7 @@ Enough UI to run Culture & Interest's setup; polish comes in later phases.
 ## After Phase 1
 
 Next: Phase 2 (forms), then Phase 3 (events with free RSVP, reusing forms for registration questions), then Phase 4 (paid tickets via each org's Paystack account, reservations, QR tickets, check-in), then Phase 5 (blog and page sections). Each gets its own design doc and plan in `docs/design/` before code.
+
+Carried forward from Phase 1:
+
+- **Phase 3 needs an event staff assignment model.** `EVENTS_VIEW_ASSIGNED` and `ATTENDEES_VIEW_ASSIGNED` (granted to event staff) must filter to the member's assigned events unless the broad `EVENTS_VIEW` / `ATTENDEES_VIEW` is also held. `TICKETS_CHECK_IN` for event staff must likewise be limited to assigned events.
