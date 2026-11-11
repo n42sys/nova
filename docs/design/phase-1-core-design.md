@@ -41,7 +41,7 @@ class TenantManager(models.Manager):
         return super().get_queryset().filter(organization=org)
 
 class TenantModel(BaseModel):
-    organization = models.ForeignKey("core.Organization", on_delete=models.CASCADE, db_index=True)
+    organization = models.ForeignKey("core.Organization", on_delete=models.PROTECT, db_index=True)
     unscoped = models.Manager()   # declared first: Django internals use it
     objects = TenantManager()      # app code: Model.objects.for_org(org)
 
@@ -49,6 +49,8 @@ class TenantModel(BaseModel):
         abstract = True
         default_manager_name = "unscoped"
 ```
+
+`on_delete=PROTECT` because organizations are suspended, never deleted, in Phase 1.
 
 `default_manager_name = "unscoped"` matters: Django's admin, related-object access and serialization use the default manager, so pointing it at the plain manager keeps those internals off the guard. Traversing from an already-scoped object (`site.api_tokens.all()`) stays inside the tenant.
 

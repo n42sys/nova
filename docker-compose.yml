@@ -1,5 +1,5 @@
-# Local development services only. Host ports can be overridden when 5432/6379 are taken,
-# e.g. NOVA_PG_PORT=5433 NOVA_REDIS_PORT=6380 docker compose up -d (update DATABASE_URL/REDIS_URL to match).
+# Local development services only. Host ports default to 55432/56379 so they don't clash with a
+# locally installed Postgres/Redis; override with NOVA_PG_PORT / NOVA_REDIS_PORT if needed.
 services:
   postgres:
     image: postgres:17
@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: nova
       POSTGRES_DB: nova
     ports:
-      - "${NOVA_PG_PORT:-5432}:5432"
+      - "${NOVA_PG_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
   redis:
     image: redis:7
     ports:
-      - "${NOVA_REDIS_PORT:-6379}:6379"
+      - "${NOVA_REDIS_PORT:-56379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:

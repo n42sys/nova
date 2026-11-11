@@ -3,8 +3,8 @@
 import os
 
 os.environ.setdefault("SECRET_KEY", "django-insecure-dev-only")
-os.environ.setdefault("DATABASE_URL", "postgres://nova:nova@localhost:5432/nova")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("DATABASE_URL", "postgres://nova:nova@localhost:55432/nova")
+os.environ.setdefault("REDIS_URL", "redis://localhost:56379/0")
 os.environ.setdefault("NOVA_BASE_DOMAIN", "localhost")
 os.environ.setdefault("NOVA_ADMIN_URL", "http://localhost:3000")
 os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1")

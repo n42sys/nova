@@ -68,7 +68,7 @@ A task is not done until `ruff check`, `ruff format --check` and `pytest` all pa
 
 ## How to work in this repo
 
-- Before starting a task, read its section in `docs/design/phase-1-plan.md` and the matching section of the design doc.
+- Before starting a task, read its section in `docs/design/phase-1-plan.md` and the matching section of the design doc, `docs/design/phase-1-core-design.md`.
 - Write the tests named in the task's acceptance criteria alongside the code, not after.
 - Keep changes scoped to the current task. If you spot an unrelated problem, note it at the end of your summary instead of fixing it.
 - Ask before adding a dependency not listed in the plan, changing an architecture rule, or changing a migration that has already been applied.
@@ -79,5 +79,6 @@ A task is not done until `ruff check`, `ruff format --check` and `pytest` all pa
 - Use `Model.objects.all()` or `.unscoped` in request-handling code.
 - Put tokens in browser storage or return secrets from any endpoint.
 - Use Django signals for business logic.
+- Enable `django.contrib.admin` for Nova data. `User` has no `PermissionsMixin`; ops tooling goes through audited services.
 - Add GraphQL, multi-database, schema-per-tenant or Postgres RLS in Phase 1.
 - Build checkout, forms, events or blog features before their phase.

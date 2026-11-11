@@ -2,7 +2,7 @@
 
 Place this file at `docs/design/phase-1-plan.md`. Work through the tasks in order; each one builds on the last. Tick a task's box only when its acceptance criteria pass and `ruff` + `pytest` are green.
 
-Design reference: *Nova — Phase 1 Core Design* (data model, role matrix, auth flows). Where this plan and the design doc disagree, stop and ask.
+Design reference: `docs/design/phase-1-core-design.md` (data model, role matrix, auth flows). Where this plan and the design doc disagree, stop and ask.
 
 **Phase 1 is done when** Culture & Interest can be set up end to end (org, sites, members with site roles, invitations, API token, media, payment account) and the tenant isolation suite passes.
 
@@ -16,8 +16,8 @@ Keep `.env.example` in `apps/api/` in sync with this list.
 | --- | --- |
 | `DJANGO_SETTINGS_MODULE` | `nova.settings.dev` / `.test` / `.prod` |
 | `SECRET_KEY` | Django secret |
-| `DATABASE_URL` | `postgres://nova:nova@localhost:5432/nova` |
-| `REDIS_URL` | `redis://localhost:6379/0` |
+| `DATABASE_URL` | `postgres://nova:nova@localhost:55432/nova` |
+| `REDIS_URL` | `redis://localhost:56379/0` |
 | `NOVA_BASE_DOMAIN` | Production domain (TBD), e.g. `nova.example` |
 | `NOVA_ADMIN_URL` | Admin app origin, used in invite and login-code emails |
 | `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS` | Comma-separated |
@@ -45,32 +45,34 @@ Set up the monorepo, the Django project and tooling. No models yet.
 - [x] `uv run pytest` runs and reports no tests collected without error.
 - [x] `ruff check` and `ruff format --check` pass.
 
-## T1 — Core foundations and custom User
+## T1 — Core foundations, custom User and Organization
 
 Must be finished before the first `migrate`.
 
 - `core/fields.py`: `uuid7()` default using `uuid6.uuid7`.
-- `core/models/base.py`: `BaseModel` (UUIDv7 `id`, `created_at`, `updated_at`), and `TenantModel(BaseModel)` with the guarded manager from the design doc (`unscoped` declared first, `default_manager_name = "unscoped"`, `objects.for_org(org)`, `objects.get_queryset()` raises `ImproperlyConfigured`).
+- `core/models/base.py`: `BaseModel` (UUIDv7 `id`, `created_at`, `updated_at`), and `TenantModel(BaseModel)` with the guarded manager from the design doc (`unscoped` declared first, `default_manager_name = "unscoped"`, `objects.for_org(org)`, `objects.get_queryset()` raises `ImproperlyConfigured`). `organization` FK uses `on_delete=PROTECT`: organizations are suspended, never deleted, in Phase 1.
+- `core/models/organization.py`: `Organization` (`name`, unique `slug`, `features` JSONB default `{}`, `status` active/suspended). Not a `TenantModel`: it is the tenant.
 - `core/models/user.py`: custom `User` (email as username, `name`, `is_staff`), `AUTH_USER_MODEL = "core.User"`.
 - `core/context.py`: `RequestContext` dataclass (`user`, `membership`, `organization`, `ip`, `actor_type`: user | token | system).
 - `core/exceptions.py`: `NovaError`, `NotFound`, `PermissionDenied`, `ValidationFailed`, `Conflict`, plus a DRF exception handler mapping them to 404/403/400/409 JSON.
 - First migration created and applied.
 
 **Acceptance**
-- [ ] `migrate` succeeds on a fresh database.
-- [ ] Test: a throwaway `TenantModel` subclass (test app) raises on `.objects.all()` and filters correctly with `.for_org()`.
-- [ ] Test: `User.objects.create_user(email=...)` works; email is case-insensitive unique.
-- [ ] Test: exception handler returns the right status and a stable JSON shape `{"error": {"code", "message", "details"}}`.
+- [x] `migrate` succeeds on a fresh database.
+- [x] Test: a throwaway `TenantModel` subclass (test-only app `core/tests/tenant_testapp`, installed only in test settings, no migrations) raises on `.objects.all()` and filters correctly with `.for_org()`.
+- [x] Test: `User.objects.create_user(email=...)` works; email is case-insensitive unique.
+- [x] Test: exception handler returns the right status and a stable JSON shape `{"error": {"code", "message", "details"}}`.
 
-## T2 — Organizations, sites, memberships, site roles
+## T2 — Sites, memberships, site roles
 
-- `Organization` (`name`, unique `slug`, `features` JSONB default `{}`, `status`).
+`Organization` lands in T1.
+
 - `Site(TenantModel)` (`name`, `slug`, `domain` nullable unique, `timezone` default `Africa/Nairobi`, `default_locale` default `en`, `settings` JSONB). Unique `(organization, slug)`.
 - `Membership(TenantModel)` (`user`, `org_role` nullable). Unique `(organization, user)`.
 - `SiteRole(TenantModel)` (`membership`, `site`, `role`). Unique `(membership, site)`. Service-level check that `site.organization_id == membership.organization_id`.
 - `Role` TextChoices: `owner`, `admin`, `editor`, `event_staff`. `owner` is valid only as an `org_role`.
 - `Membership.effective_role(site) -> Role | None`: `SiteRole` → `org_role` → `None`. Avoid N+1: prefetch site roles in the selector that loads the membership.
-- Factories for all four models.
+- Factories for `Site`, `Membership` and `SiteRole` (`Organization` and `User` factories exist from T1).
 
 **Acceptance**
 - [ ] Tests for every constraint above, including the cross-org `SiteRole` rejection.
