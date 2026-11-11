@@ -24,6 +24,9 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "drf_spectacular",
+    "allauth",
+    "allauth.account",
+    "allauth.headless",
     "core",
     "payments",
 ]
@@ -37,6 +40,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "nova.urls"
@@ -63,6 +67,7 @@ DATABASES = {"default": env.db("DATABASE_URL")}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "core.User"
+AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -83,10 +88,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 NOVA_BASE_DOMAIN = env("NOVA_BASE_DOMAIN")
 NOVA_ADMIN_URL = env("NOVA_ADMIN_URL")
 NOVA_FERNET_KEYS = env.list("NOVA_FERNET_KEYS", default=[])
+# Number of reverse proxies (e.g. Caddy) in front of the API; used to read the client IP
+# from X-Forwarded-For. 0 means trust REMOTE_ADDR only.
+NOVA_TRUSTED_PROXY_COUNT = env.int("NOVA_TRUSTED_PROXY_COUNT", default=0)
 
 # Email
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
 NOVA_EMAIL_FROM = env("NOVA_EMAIL_FROM", default="")
+DEFAULT_FROM_EMAIL = NOVA_EMAIL_FROM
+# Overridden per environment: console (dev), locmem (test), Resend via Celery (prod).
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Media storage (Cloudflare R2)
 R2_ACCOUNT_ID = env("R2_ACCOUNT_ID", default="")
@@ -102,9 +113,37 @@ CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TIMEZONE = "UTC"
 CELERY_TASK_ACKS_LATE = True
 
+# Sessions, CSRF, CORS. The admin app and API share a parent domain (cookie domain set in
+# prod). The CSRF cookie stays readable by JS so the admin app can send X-CSRFToken.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+CORS_ALLOW_CREDENTIALS = True
+
+# Auth (django-allauth, headless only, browser sessions only)
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_LOGIN_BY_CODE_ENABLED = True
+ACCOUNT_EMAIL_SUBJECT_PREFIX = ""
+ACCOUNT_ADAPTER = "core.auth_adapter.AccountAdapter"
+HEADLESS_ONLY = True
+HEADLESS_CLIENTS = ("browser",)
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": f"{NOVA_ADMIN_URL}/account/verify-email/{{key}}",
+    "account_reset_password": f"{NOVA_ADMIN_URL}/account/password/reset",
+    "account_reset_password_from_key": f"{NOVA_ADMIN_URL}/account/password/reset/key/{{key}}",
+    "account_signup": f"{NOVA_ADMIN_URL}/account/signup",
+}
+
 # API
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": ["core.auth.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "core.exceptions.exception_handler",
 }
 

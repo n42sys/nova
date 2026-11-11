@@ -22,6 +22,7 @@ Keep `.env.example` in `apps/api/` in sync with this list.
 | `NOVA_ADMIN_URL` | Admin app origin, used in invite and login-code emails |
 | `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS` | Comma-separated |
 | `NOVA_FERNET_KEYS` | Comma-separated Fernet keys, newest first |
+| `NOVA_TRUSTED_PROXY_COUNT` | Reverse proxies in front of the API (1 behind Caddy); used for the client IP |
 | `RESEND_API_KEY`, `NOVA_EMAIL_FROM` | Transactional email |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` | Media storage |
 
@@ -97,8 +98,8 @@ Must be finished before the first `migrate`.
 - Selector `list_audit_log(org, *, cursor, limit)` with cursor pagination on `(created_at, id)`.
 
 **Acceptance**
-- [ ] Test: updating or deleting an audit row raises.
-- [ ] Test: sensitive metadata keys are stripped.
+- [x] Test: updating or deleting an audit row raises.
+- [x] Test: sensitive metadata keys are stripped.
 
 ## T5 — Auth and request context
 
@@ -109,9 +110,9 @@ Must be finished before the first `migrate`.
 - `n42sys` staff access (`is_staff`) is **not** a bypass: it requires an explicit `support_session` service (Phase 1 can stub this as "not implemented").
 
 **Acceptance**
-- [ ] Test: login, `/me/`, logout flow through the headless endpoints.
-- [ ] Test: a user with no membership in org B gets 404 on any `/api/manage/orgs/{b}/…` URL.
-- [ ] Test: unauthenticated management requests get 401 (not 403).
+- [x] Test: login, `/me/`, logout flow through the headless endpoints.
+- [x] Test: a user with no membership in org B gets 404 on any `/api/manage/orgs/{b}/…` URL.
+- [x] Test: unauthenticated management requests get 401 (not 403).
 
 ## T6 — Management API: org, sites, members
 
@@ -147,6 +148,7 @@ Rules: admins cannot grant or remove `owner`; the last owner cannot be demoted o
 - Endpoints: `GET/POST /api/manage/orgs/{org}/invitations/`, `DELETE …/invitations/{id}/`, `POST …/invitations/{id}/resend/`, and public `GET /api/manage/invitations/{token}/` (preview: org name, inviter, role) + `POST /api/manage/invitations/{token}/accept/` (requires a logged-in user whose email matches).
 - Accept runs in one transaction: create `Membership` (or update an existing one, merging roles), create `SiteRole` rows, mark accepted, audit.
 - Invite email sent by a Celery task through Resend, linking to `{NOVA_ADMIN_URL}/invite/{token}`.
+- The allauth account adapter (`core.auth_adapter.AccountAdapter`, closed since T5) opens sign-up only for an email with a valid open invitation. Accepting an invitation marks that email as verified.
 
 **Acceptance**
 - [ ] Tests: expired, revoked, already-accepted and wrong-email tokens all fail cleanly.
@@ -218,6 +220,8 @@ Enough UI to run Culture & Interest's setup; polish comes in later phases.
 - `deploy/docker-compose.prod.yml`: Caddy (automatic HTTPS for `admin.`, `api.` and `public.` subdomains of `NOVA_BASE_DOMAIN`), api, celery worker, admin, postgres 17, redis.
 - Nightly `pg_dump` to R2 (a small container with a cron schedule), 14-day retention.
 - `deploy/README.md` with the first-deploy and update steps.
+- Redis is reachable only on the internal Docker network and has `requirepass` set (`REDIS_URL` carries the password).
+- `NOVA_TRUSTED_PROXY_COUNT=1` behind Caddy; set it to `2` if Cloudflare is ever put in front of Caddy.
 
 **Acceptance**
 - [ ] Fresh VPS deploy reaches a working login over HTTPS.

@@ -1,11 +1,9 @@
 """Production settings. Every required value must come from the environment."""
 
 from .base import *  # noqa: F403
-from .base import NOVA_BASE_DOMAIN, env
+from .base import NOVA_BASE_DOMAIN, REDIS_URL, env
 
 DEBUG = False
-
-CORS_ALLOW_CREDENTIALS = True
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
@@ -14,9 +12,17 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_DOMAIN = f".{NOVA_BASE_DOMAIN}"
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_DOMAIN = f".{NOVA_BASE_DOMAIN}"
+
+# Shared cache so allauth rate limits (and later token throttles) hold across workers.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
+}
+
+# Email goes out through Resend from a Celery task. Required in prod.
+RESEND_API_KEY = env("RESEND_API_KEY")
+NOVA_EMAIL_FROM = env("NOVA_EMAIL_FROM")
+DEFAULT_FROM_EMAIL = NOVA_EMAIL_FROM
+EMAIL_BACKEND = "core.email.ResendCeleryEmailBackend"

@@ -1,6 +1,6 @@
 import factory
 
-from core.models import Membership, Organization, Role, Site, SiteRole, User
+from core.models import AuditLog, Membership, Organization, Role, Site, SiteRole, User
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -58,3 +58,11 @@ class SiteRoleFactory(TenantFactory):
     organization = factory.SelfAttribute("membership.organization")
     site = factory.SubFactory(SiteFactory, organization=factory.SelfAttribute("..organization"))
     role = Role.EDITOR
+
+
+class AuditLogFactory(TenantFactory):
+    class Meta:
+        model = AuditLog
+
+    organization = factory.SubFactory(OrganizationFactory)
+    action = "test.action"

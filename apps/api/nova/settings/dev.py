@@ -10,9 +10,9 @@ os.environ.setdefault("NOVA_ADMIN_URL", "http://localhost:3000")
 os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1")
 os.environ.setdefault("CSRF_TRUSTED_ORIGINS", "http://localhost:3000")
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+os.environ.setdefault("NOVA_EMAIL_FROM", "Nova <nova@localhost>")
 
 from .base import *  # noqa: E402, F403
 
 DEBUG = True
-CORS_ALLOW_CREDENTIALS = True
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

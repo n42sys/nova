@@ -8,6 +8,9 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:56379/0")
 os.environ.setdefault("NOVA_BASE_DOMAIN", "nova.test")
 os.environ.setdefault("NOVA_ADMIN_URL", "http://admin.nova.test")
 os.environ.setdefault("ALLOWED_HOSTS", "testserver,localhost")
+os.environ.setdefault("NOVA_EMAIL_FROM", "Nova <nova@nova.test>")
+os.environ.setdefault("CSRF_TRUSTED_ORIGINS", "http://admin.nova.test")
+os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://admin.nova.test")
 
 from .base import *  # noqa: E402, F403
 
