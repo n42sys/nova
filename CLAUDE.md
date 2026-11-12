@@ -29,6 +29,7 @@ uv sync                                   # install Python deps
 uv run python manage.py migrate
 uv run python manage.py runserver
 uv run celery -A nova worker -l info
+uv run celery -A nova beat -l info         # scheduled jobs (media cleanup)
 uv run pytest                             # all tests
 uv run pytest core/tests/test_isolation.py -x   # tenant isolation suite
 uv run ruff check . --fix && uv run ruff format .

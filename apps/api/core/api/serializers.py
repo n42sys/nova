@@ -1,6 +1,15 @@
 from rest_framework import serializers
 
-from core.models import SITE_ROLE_CHOICES, Invitation, Organization, Role, Site
+from core import storage
+from core.models import (
+    SITE_ROLE_CHOICES,
+    ApiToken,
+    Invitation,
+    MediaAsset,
+    Organization,
+    Role,
+    Site,
+)
 
 
 class SiteRoleSummarySerializer(serializers.Serializer):
@@ -148,3 +157,87 @@ class InvitationPreviewSerializer(serializers.Serializer):
     site_roles = InvitationPreviewSiteRoleSerializer(many=True)
     expires_at = serializers.DateTimeField()
     account_exists = serializers.BooleanField()
+
+
+class ApiTokenSerializer(serializers.Serializer):
+    """Never includes the secret or its hash."""
+
+    id = serializers.UUIDField()
+    site_id = serializers.UUIDField()
+    name = serializers.CharField()
+    kind = serializers.ChoiceField(choices=ApiToken.Kind.choices)
+    prefix = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    last_used_at = serializers.DateTimeField(allow_null=True)
+    revoked_at = serializers.DateTimeField(allow_null=True)
+
+
+class ApiTokenCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    kind = serializers.ChoiceField(choices=ApiToken.Kind.choices)
+
+
+class ApiTokenCreatedSerializer(ApiTokenSerializer):
+    token = serializers.CharField(help_text="The full token. Shown only once; store it now.")
+
+
+class DeliverySiteSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    slug = serializers.CharField()
+    timezone = serializers.CharField()
+    locale = serializers.CharField(source="default_locale")
+
+
+class MediaUploadRequestSerializer(serializers.Serializer):
+    filename = serializers.CharField(max_length=255)
+    mime_type = serializers.CharField(max_length=100)
+    size_bytes = serializers.IntegerField(min_value=1)
+    site_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class MediaUploadSerializer(serializers.Serializer):
+    asset_id = serializers.UUIDField(source="asset.id")
+    file_key = serializers.CharField(source="asset.file_key")
+    upload_url = serializers.URLField()
+    method = serializers.CharField(default="PUT")
+    headers = serializers.DictField(child=serializers.CharField())
+    expires_at = serializers.DateTimeField()
+
+
+class MediaConfirmSerializer(serializers.Serializer):
+    asset_id = serializers.UUIDField()
+    alt_text = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+
+
+class MediaAssetSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    site_id = serializers.UUIDField(allow_null=True)
+    file_key = serializers.CharField()
+    url = serializers.SerializerMethodField()
+    mime_type = serializers.CharField()
+    size_bytes = serializers.IntegerField()
+    width = serializers.IntegerField(allow_null=True)
+    height = serializers.IntegerField(allow_null=True)
+    alt_text = serializers.CharField()
+    status = serializers.ChoiceField(choices=MediaAsset.Status.choices)
+    uploaded_by = UserSummarySerializer(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+    def get_url(self, asset: MediaAsset) -> str | None:
+        return storage.public_url(asset.file_key)
+
+
+class MediaUpdateSerializer(serializers.Serializer):
+    alt_text = serializers.CharField(max_length=500, allow_blank=True)
+
+
+class MediaQuerySerializer(serializers.Serializer):
+    site_id = serializers.UUIDField(required=False)
+    mime_prefix = serializers.CharField(required=False, max_length=100)
+    cursor = serializers.CharField(required=False)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=100, default=50)
+
+
+class MediaPageSerializer(serializers.Serializer):
+    results = MediaAssetSerializer(many=True, source="items")
+    next_cursor = serializers.CharField(allow_null=True)

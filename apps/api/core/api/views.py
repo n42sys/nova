@@ -7,11 +7,21 @@ from rest_framework.views import APIView
 
 from core.api.base import OrgScopedAPIView
 from core.api.serializers import (
+    ApiTokenCreatedSerializer,
+    ApiTokenCreateSerializer,
+    ApiTokenSerializer,
     AuditLogPageSerializer,
     AuditLogQuerySerializer,
     InvitationCreateSerializer,
     InvitationPreviewSerializer,
     InvitationSerializer,
+    MediaAssetSerializer,
+    MediaConfirmSerializer,
+    MediaPageSerializer,
+    MediaQuerySerializer,
+    MediaUpdateSerializer,
+    MediaUploadRequestSerializer,
+    MediaUploadSerializer,
     MemberSerializer,
     MemberUpdateSerializer,
     MeOrganizationSerializer,
@@ -25,15 +35,18 @@ from core.api.serializers import (
 from core.auth import SessionAuthentication, enforce_csrf
 from core.exceptions import Gone, NotFound
 from core.invitation_session import forget_invitation, remember_invitation
-from core.models import Invitation, Membership, Role, Site
+from core.models import ApiToken, Invitation, MediaAsset, Membership, Role, Site
 from core.request import get_client_ip
+from core.selectors.api_tokens import get_api_token
 from core.selectors.invitations import (
     get_invitation,
     invitation_preview,
 )
+from core.selectors.media import get_media
 from core.selectors.memberships import get_member, list_memberships_for_user
 from core.selectors.sites import get_site, get_visible_site, list_sites
 from core.selectors.token_resolution import resolve_invitation_token
+from core.services.api_tokens import create_api_token, revoke_api_token, view_api_tokens
 from core.services.audit import view_audit_log
 from core.services.invitations import (
     accept_invitation,
@@ -41,6 +54,13 @@ from core.services.invitations import (
     resend_invitation,
     revoke_invitation,
     view_invitations,
+)
+from core.services.media import (
+    confirm_upload,
+    delete_media,
+    request_upload,
+    update_media,
+    view_media,
 )
 from core.services.memberships import (
     change_org_role,
@@ -294,3 +314,122 @@ class InvitationAcceptView(APIView):
         forget_invitation(request)
         membership = get_member(membership.organization, membership.id)
         return Response(MeOrganizationSerializer(membership).data)
+
+
+class SiteLookupMixin:
+    def get_site(self, site_id) -> Site:
+        site = get_visible_site(self.ctx.organization, site_id, membership=self.ctx.membership)
+        if site is None:
+            raise NotFound()
+        return site
+
+
+class ApiTokenListView(SiteLookupMixin, OrgScopedAPIView):
+    @extend_schema(operation_id="api_tokens_list", responses=ApiTokenSerializer(many=True))
+    def get(self, request: Request, org: str, site_id) -> Response:
+        tokens = view_api_tokens(self.ctx, self.get_site(site_id))
+        return Response(ApiTokenSerializer(tokens, many=True).data)
+
+    @extend_schema(
+        operation_id="api_tokens_create",
+        request=ApiTokenCreateSerializer,
+        responses={201: ApiTokenCreatedSerializer},
+    )
+    def post(self, request: Request, org: str, site_id) -> Response:
+        site = self.get_site(site_id)
+        data = ApiTokenCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        created = create_api_token(
+            self.ctx,
+            site,
+            name=data.validated_data["name"],
+            kind=ApiToken.Kind(data.validated_data["kind"]),
+        )
+        body = {**ApiTokenSerializer(created.token).data, "token": created.raw}
+        return Response(body, status=status.HTTP_201_CREATED)
+
+
+class ApiTokenDetailView(SiteLookupMixin, OrgScopedAPIView):
+    @extend_schema(operation_id="api_tokens_revoke", responses={204: None})
+    def delete(self, request: Request, org: str, site_id, token_id) -> Response:
+        site = self.get_site(site_id)
+        token = get_api_token(self.ctx.organization, site, token_id)
+        if token is None:
+            raise NotFound()
+        revoke_api_token(self.ctx, token)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MediaUploadView(SiteLookupMixin, OrgScopedAPIView):
+    @extend_schema(
+        operation_id="media_upload_request",
+        request=MediaUploadRequestSerializer,
+        responses={201: MediaUploadSerializer},
+    )
+    def post(self, request: Request, org: str) -> Response:
+        data = MediaUploadRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        site_id = data.validated_data.pop("site_id", None)
+        site = self.get_site(site_id) if site_id else None
+        upload = request_upload(self.ctx, site=site, **data.validated_data)
+        body = {
+            "asset": upload.asset,
+            "upload_url": upload.upload_url,
+            "method": "PUT",
+            "headers": {"Content-Type": upload.asset.mime_type},
+            "expires_at": upload.expires_at,
+        }
+        return Response(MediaUploadSerializer(body).data, status=status.HTTP_201_CREATED)
+
+
+class MediaListView(SiteLookupMixin, OrgScopedAPIView):
+    @extend_schema(
+        operation_id="media_list", parameters=[MediaQuerySerializer], responses=MediaPageSerializer
+    )
+    def get(self, request: Request, org: str) -> Response:
+        query = MediaQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        site_id = query.validated_data.pop("site_id", None)
+        site = self.get_site(site_id) if site_id else None
+        page = view_media(self.ctx, site=site, **query.validated_data)
+        return Response(MediaPageSerializer(page).data)
+
+    @extend_schema(
+        operation_id="media_confirm", request=MediaConfirmSerializer, responses=MediaAssetSerializer
+    )
+    def post(self, request: Request, org: str) -> Response:
+        data = MediaConfirmSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        asset = get_media(
+            self.ctx.organization,
+            data.validated_data["asset_id"],
+            statuses=(MediaAsset.Status.PENDING, MediaAsset.Status.READY),
+        )
+        if asset is None:
+            raise NotFound()
+        asset = confirm_upload(self.ctx, asset, alt_text=data.validated_data["alt_text"])
+        return Response(MediaAssetSerializer(asset).data)
+
+
+class MediaDetailView(OrgScopedAPIView):
+    def get_asset(self, asset_id) -> MediaAsset:
+        asset = get_media(self.ctx.organization, asset_id)
+        if asset is None:
+            raise NotFound()
+        return asset
+
+    @extend_schema(
+        operation_id="media_update", request=MediaUpdateSerializer, responses=MediaAssetSerializer
+    )
+    def patch(self, request: Request, org: str, asset_id) -> Response:
+        asset = self.get_asset(asset_id)
+        data = MediaUpdateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        return Response(
+            MediaAssetSerializer(update_media(self.ctx, asset, **data.validated_data)).data
+        )
+
+    @extend_schema(operation_id="media_delete", responses={204: None})
+    def delete(self, request: Request, org: str, asset_id) -> Response:
+        delete_media(self.ctx, self.get_asset(asset_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)

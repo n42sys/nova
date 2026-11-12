@@ -11,14 +11,27 @@ the coverage tests fail otherwise, including when a view gains an unregistered m
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
+from django.conf import settings
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils import timezone
 
-from core.models import AuditLog, Invitation, Membership, Organization, Role, Site, SiteRole
+from core import storage
+from core.models import (
+    ApiToken,
+    AuditLog,
+    Invitation,
+    MediaAsset,
+    Membership,
+    Organization,
+    Role,
+    Site,
+    SiteRole,
+)
 from core.tests.factories import (
     InvitationFactory,
     MembershipFactory,
@@ -27,7 +40,7 @@ from core.tests.factories import (
     SiteRoleFactory,
     UserFactory,
 )
-from core.tokens import new_invitation_token
+from core.tokens import new_api_token, new_invitation_token
 
 MANAGE_PREFIX = "api/manage/"
 NOT_FOUND = {"error": {"code": "not_found", "message": "Not found.", "details": None}}
@@ -45,7 +58,13 @@ ACTORS = ("owner", "site_only")
 class Endpoint:
     name: str  # URL name
     kwargs: tuple[str, ...]  # URL kwargs, resolved per tenant by Tenant.url_kwargs()
-    methods: dict[str, dict[str, Any] | None]  # HTTP method -> request body
+    # HTTP method -> request body: a dict, None, or a callable building it from a Tenant
+    # (for bodies that carry tenant IDs; those also get an "a-org-b-body" variant).
+    methods: dict[str, dict[str, Any] | Callable[[Tenant], dict[str, Any]] | None]
+
+    def body(self, method: str, tenant: Tenant) -> dict[str, Any] | None:
+        body = self.methods[method]
+        return body(tenant) if callable(body) else body
 
 
 ENDPOINTS: list[Endpoint] = [
@@ -67,6 +86,34 @@ ENDPOINTS: list[Endpoint] = [
             "PATCH": {"name": "Renamed by intruder", "timezone": "UTC"},
             "DELETE": None,
         },
+    ),
+    Endpoint(
+        "api-token-list",
+        kwargs=("org", "site_id"),
+        methods={"GET": None, "POST": {"name": "Intruder", "kind": "delivery"}},
+    ),
+    Endpoint("api-token-detail", kwargs=("org", "site_id", "token_id"), methods={"DELETE": None}),
+    Endpoint(
+        "media-upload",
+        kwargs=("org",),
+        methods={
+            "POST": lambda t: {
+                "filename": "intruder.png",
+                "mime_type": "image/png",
+                "size_bytes": 10,
+                "site_id": str(t.sites["main"].id),
+            }
+        },
+    ),
+    Endpoint(
+        "media-list",
+        kwargs=("org",),
+        methods={"GET": None, "POST": lambda t: {"asset_id": str(t.pending_asset.id)}},
+    ),
+    Endpoint(
+        "media-detail",
+        kwargs=("org", "asset_id"),
+        methods={"PATCH": {"alt_text": "Renamed by intruder"}, "DELETE": None},
     ),
     Endpoint("member-list", kwargs=("org",), methods={"GET": None}),
     Endpoint(
@@ -115,6 +162,9 @@ class Tenant:
     members: dict[str, Membership] = field(default_factory=dict)
     invitation: Invitation | None = None
     revoked_invitation_token: str = ""
+    api_token: ApiToken | None = None
+    asset: MediaAsset | None = None  # ready, with its R2 object
+    pending_asset: MediaAsset | None = None  # uploaded but not yet confirmed
 
     def url_kwargs(self) -> dict[str, Any]:
         return {
@@ -122,6 +172,8 @@ class Tenant:
             "site_id": self.sites["main"].id,
             "membership_id": self.members["editor"].id,
             "invitation_id": self.invitation.id,
+            "token_id": self.api_token.id,
+            "asset_id": self.asset.id,
         }
 
     def markers(self) -> list[str]:
@@ -132,6 +184,10 @@ class Tenant:
         for membership in self.members.values():
             values += [str(membership.id), str(membership.user.id), membership.user.email]
         values += [str(self.invitation.id), self.invitation.email]
+        values += [str(self.api_token.id), self.api_token.name, self.api_token.prefix]
+        for asset in (self.asset, self.pending_asset):
+            values += [str(asset.id), asset.file_key]
+        values.append(self.asset.alt_text)
         return values
 
     def snapshot(self) -> dict[str, Any]:
@@ -142,11 +198,36 @@ class Tenant:
             "members": list(Membership.objects.for_org(org).order_by("id").values()),
             "site_roles": list(SiteRole.objects.for_org(org).order_by("id").values()),
             "invitations": list(Invitation.objects.for_org(org).order_by("id").values()),
+            "api_tokens": list(ApiToken.objects.for_org(org).order_by("id").values()),
+            "media": list(MediaAsset.objects.for_org(org).order_by("id").values()),
+            "r2_objects": sorted(
+                item["Key"]
+                for item in storage._client()
+                .list_objects_v2(Bucket=settings.R2_BUCKET, Prefix=f"orgs/{org.id}/")
+                .get("Contents", [])
+            ),
             "audit": AuditLog.objects.for_org(org).count(),
         }
 
 
-def build_tenant(label: str) -> Tenant:
+def _media(tenant: Tenant, s3, *, status: str, name: str, alt_text: str = "") -> MediaAsset:
+    asset = MediaAsset.unscoped.create(
+        organization=tenant.org,
+        site=tenant.sites["main"],
+        file_key=f"orgs/{tenant.org.id}/{tenant.label}-{name}/{name}.png",
+        mime_type="image/png",
+        size_bytes=4,
+        alt_text=alt_text,
+        status=status,
+        uploaded_by=tenant.members["editor"].user,
+    )
+    s3.put_object(
+        Bucket=settings.R2_BUCKET, Key=asset.file_key, Body=b"\x89PNG", ContentType="image/png"
+    )
+    return asset
+
+
+def build_tenant(label: str, s3) -> Tenant:
     org = OrganizationFactory(name=f"Tenant {label} Org", slug=f"tenant-{label}")
     tenant = Tenant(label=label, org=org)
     for slug in ("main", "events"):
@@ -177,6 +258,19 @@ def build_tenant(label: str) -> Tenant:
         invited_by=tenant.members["owner"].user,
     )
     tenant.revoked_invitation_token = token
+    _, prefix, token_hash = new_api_token("delivery")
+    tenant.api_token = ApiToken.unscoped.create(
+        organization=org,
+        site=tenant.sites["main"],
+        name=f"Tenant {label} website",
+        kind=ApiToken.Kind.DELIVERY,
+        prefix=prefix,
+        token_hash=token_hash,
+    )
+    tenant.asset = _media(
+        tenant, s3, status=MediaAsset.Status.READY, name="poster", alt_text=f"Tenant {label} poster"
+    )
+    tenant.pending_asset = _media(tenant, s3, status=MediaAsset.Status.PENDING, name="flyer")
     return tenant
 
 
@@ -187,8 +281,8 @@ class World:
 
 
 @pytest.fixture
-def world(db) -> World:
-    return World(a=build_tenant("a"), b=build_tenant("b"))
+def world(db, s3) -> World:
+    return World(a=build_tenant("a", s3), b=build_tenant("b", s3))
 
 
 # Cases
@@ -200,15 +294,22 @@ class Case:
     method: str
     # "b-org": all of B's kwargs. "a-org-b-ids": A's slug with all of B's object IDs.
     # "a-org-b-<kwarg>": A's slug and A's IDs, except <kwarg> taken from B.
+    # "a-org-b-body": A's URL, with B's IDs in the request body.
     variant: str
     actor: str
 
     def __str__(self) -> str:
         return f"{self.endpoint.name}:{self.method}:{self.variant}:{self.actor}"
 
+    def body(self, world: World) -> dict[str, Any] | None:
+        tenant = world.b if self.variant in {"b-org", "a-org-b-body"} else world.a
+        return self.endpoint.body(self.method, tenant)
+
     def url(self, world: World) -> str:
         a, b = world.a.url_kwargs(), world.b.url_kwargs()
-        if self.variant == "b-org":
+        if self.variant == "a-org-b-body":
+            kwargs = {key: a[key] for key in self.endpoint.kwargs}
+        elif self.variant == "b-org":
             kwargs = {key: b[key] for key in self.endpoint.kwargs}
         elif self.variant == "a-org-b-ids":
             kwargs = {key: a[key] if key == "org" else b[key] for key in self.endpoint.kwargs}
@@ -218,13 +319,15 @@ class Case:
         return reverse(self.endpoint.name, kwargs=kwargs)
 
 
-def _variants(endpoint: Endpoint) -> list[str]:
+def _variants(endpoint: Endpoint, method: str) -> list[str]:
     object_ids = [key for key in endpoint.kwargs if key != "org"]
     variants = ["b-org"]
     if object_ids:
         variants.append("a-org-b-ids")
     if len(object_ids) > 1:
         variants += [f"a-org-b-{key}" for key in object_ids]
+    if callable(endpoint.methods[method]):
+        variants.append("a-org-b-body")
     return variants
 
 
@@ -232,7 +335,7 @@ CASES = [
     Case(endpoint, method, variant, actor)
     for endpoint in ENDPOINTS
     for method in endpoint.methods
-    for variant in _variants(endpoint)
+    for variant in _variants(endpoint, method)
     for actor in ACTORS
 ]
 
@@ -251,7 +354,7 @@ def test_cross_tenant_request_is_404(case: Case, world: World, browser):
     browser.force_login(world.a.members[case.actor].user)
     before = (world.a.snapshot(), world.b.snapshot())
 
-    response = _send(browser, case.method, case.url(world), case.endpoint.methods[case.method])
+    response = _send(browser, case.method, case.url(world), case.body(world))
 
     assert response.status_code == 404, response.content
     assert response.json() == NOT_FOUND
@@ -270,7 +373,7 @@ def test_same_tenant_control_is_not_404(endpoint: Endpoint, method: str, world: 
     kwargs = {key: world.a.url_kwargs()[key] for key in endpoint.kwargs}
 
     response = _send(
-        browser, method, reverse(endpoint.name, kwargs=kwargs), endpoint.methods[method]
+        browser, method, reverse(endpoint.name, kwargs=kwargs), endpoint.body(method, world.a)
     )
 
     assert response.status_code != 404, response.content

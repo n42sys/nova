@@ -22,9 +22,12 @@ Keep `.env.example` in `apps/api/` in sync with this list.
 | `NOVA_ADMIN_URL` | Admin app origin, used in invite and login-code emails |
 | `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS` | Comma-separated |
 | `NOVA_FERNET_KEYS` | Comma-separated Fernet keys, newest first |
+| `NOVA_API_TOKEN_RATE` | Requests per API token, DRF rate syntax (default `600/min`) |
 | `NOVA_TRUSTED_PROXY_COUNT` | Reverse proxies in front of the API (1 behind Caddy); used for the client IP |
 | `RESEND_API_KEY`, `NOVA_EMAIL_FROM` | Transactional email |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` | Media storage |
+| `R2_ENDPOINT_URL` | Optional S3 endpoint override (defaults to the R2 endpoint for `R2_ACCOUNT_ID`) |
+| `NOVA_MEDIA_MAX_BYTES` | Largest accepted upload in bytes (default 25 MB) |
 
 ---
 
@@ -166,19 +169,22 @@ Rules: admins grant only `editor` or `event_staff` (org role or site role), cann
 - Smoke endpoint `GET /api/v1/site/` returning the token's site name, slug, timezone, locale.
 
 **Acceptance**
-- [ ] Tests: valid token works; revoked, malformed and wrong-prefix tokens get 401; a delivery token cannot call management endpoints and a session cannot call delivery endpoints.
-- [ ] Test: a token for site A only ever sees site A.
+- [x] Tests: valid token works; revoked, malformed and wrong-prefix tokens get 401; a delivery token cannot call management endpoints and a session cannot call delivery endpoints.
+- [x] Test: a token for site A only ever sees site A.
 
 ## T9 — Media
 
-- `MediaAsset(TenantModel)` per design doc, `site` nullable.
-- `POST /api/manage/orgs/{org}/media/uploads/`: validates mime type (images, PDF, audio/video allowlist) and size (default 25 MB, setting), returns an R2 presigned POST and a pending `file_key` under `orgs/{org_id}/{uuid7}/{filename}`.
-- `POST …/media/` confirms the upload: `head_object` to verify existence and size, reads image dimensions in a Celery task (Pillow — add the dependency), creates the row.
-- `GET …/media/` (cursor-paginated, filter by site and mime prefix), `PATCH …/media/{id}/` (alt text), `DELETE …/media/{id}/` (Celery task deletes the object; row hard-deleted after).
-- Tests mock S3 with `botocore.stub.Stubber` or moto — prefer `moto[s3]` as a dev dependency.
+R2 does not support presigned POST, so uploads use a presigned PUT.
+
+- `MediaAsset(TenantModel)` per design doc, `site` nullable, plus `status` (`pending`, `ready`, `deleting`, `invalid`).
+- `POST /api/manage/orgs/{org}/media/uploads/`: validates mime type (images, PDF, audio/video allowlist) and declared size (default 25 MB, `NOVA_MEDIA_MAX_BYTES`), creates `MediaAsset(status=pending)` with `file_key` under `orgs/{org_id}/{uuid7}/{filename}`, and returns a presigned PUT URL (15-minute expiry, `Content-Type` signed in).
+- `POST …/media/` confirms the upload: `head_object`; if the object is missing, 400; if its size or type does not match, delete the object and return 400; otherwise set `status=ready`. Image dimensions are read in a Celery task (Pillow); if Pillow cannot open the file, the task sets `status=invalid`, deletes the R2 object and logs it.
+- `GET …/media/` (cursor-paginated, filter by site and mime prefix, **only `ready` assets**), `PATCH …/media/{id}/` (alt text), `DELETE …/media/{id}/` (marks `deleting`; a Celery task deletes the object, then hard-deletes the row).
+- A daily Celery beat task (static `CELERY_BEAT_SCHEDULE`, no extra dependency) deletes `pending` assets older than 24 hours and their R2 objects.
+- Tests mock S3 with `moto[s3]` (dev dependency).
 
 **Acceptance**
-- [ ] Tests: disallowed type and oversize rejected; confirm fails if the object is missing; keys are always under the caller's org prefix; editor can upload but not delete.
+- [x] Tests: disallowed type and oversize rejected; confirm fails if the object is missing; keys are always under the caller's org prefix; editor can upload but not delete.
 
 ## T10 — Payment accounts
 
@@ -223,6 +229,9 @@ Enough UI to run Culture & Interest's setup; polish comes in later phases.
 - `deploy/README.md` with the first-deploy and update steps.
 - Redis is reachable only on the internal Docker network and has `requirepass` set (`REDIS_URL` carries the password).
 - `NOVA_TRUSTED_PROXY_COUNT=1` behind Caddy; set it to `2` if Cloudflare is ever put in front of Caddy.
+- The R2 bucket's CORS rule must allow `PUT` (with `Content-Type`) from the admin origin, for presigned media uploads.
+- Run a `celery beat` process alongside the worker (media cleanup schedule from T9).
+- Serve media (`R2_PUBLIC_URL`) from a host outside the session cookie's parent domain (not a subdomain of `NOVA_BASE_DOMAIN`), so uploaded files can never read or set the admin session cookie.
 
 **Acceptance**
 - [ ] Fresh VPS deploy reaches a working login over HTTPS.
@@ -246,4 +255,5 @@ Next: Phase 2 (forms), then Phase 3 (events with free RSVP, reusing forms for re
 Carried forward from Phase 1:
 
 - **Backlog: leave organization endpoint** (with the last-owner rule). Members cannot remove themselves through the member endpoints.
+- **Backlog: SVG uploads with sanitisation.** SVG is excluded from the T9 allowlist because it can carry script; allow it only once uploads are sanitised server-side.
 - **Phase 3 needs an event staff assignment model.** `EVENTS_VIEW_ASSIGNED` and `ATTENDEES_VIEW_ASSIGNED` (granted to event staff) must filter to the member's assigned events unless the broad `EVENTS_VIEW` / `ATTENDEES_VIEW` is also held. `TICKETS_CHECK_IN` for event staff must likewise be limited to assigned events.

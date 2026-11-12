@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -91,6 +92,8 @@ NOVA_FERNET_KEYS = env.list("NOVA_FERNET_KEYS", default=[])
 # Number of reverse proxies (e.g. Caddy) in front of the API; used to read the client IP
 # from X-Forwarded-For. 0 means trust REMOTE_ADDR only.
 NOVA_TRUSTED_PROXY_COUNT = env.int("NOVA_TRUSTED_PROXY_COUNT", default=0)
+# Requests per API token (DRF rate syntax), keyed by token prefix.
+NOVA_API_TOKEN_RATE = env("NOVA_API_TOKEN_RATE", default="600/min")
 
 # Email
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
@@ -105,6 +108,16 @@ R2_ACCESS_KEY_ID = env("R2_ACCESS_KEY_ID", default="")
 R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
 R2_BUCKET = env("R2_BUCKET", default="")
 R2_PUBLIC_URL = env("R2_PUBLIC_URL", default="")
+R2_ENDPOINT_URL = (
+    env(
+        "R2_ENDPOINT_URL",
+        default=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com" if R2_ACCOUNT_ID else "",
+    )
+    or None
+)
+R2_REGION = "auto"
+# Largest accepted upload, in bytes.
+NOVA_MEDIA_MAX_BYTES = env.int("NOVA_MEDIA_MAX_BYTES", default=25 * 1024 * 1024)
 
 # Redis / Celery
 REDIS_URL = env("REDIS_URL")
@@ -112,6 +125,13 @@ CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TIMEZONE = "UTC"
 CELERY_TASK_ACKS_LATE = True
+# Static schedule; run `celery -A nova beat` alongside the worker.
+CELERY_BEAT_SCHEDULE = {
+    "purge-stale-media-uploads": {
+        "task": "core.tasks.purge_stale_uploads",
+        "schedule": crontab(hour=3, minute=0),
+    },
+}
 
 # Sessions, CSRF, CORS. The admin app and API share a parent domain (cookie domain set in
 # prod). The CSRF cookie stays readable by JS so the admin app can send X-CSRFToken.
@@ -158,5 +178,7 @@ SPECTACULAR_SETTINGS = {
         "OrganizationStatusEnum": "core.models.Organization.Status",
         "SiteStatusEnum": "core.models.Site.Status",
         "InvitationStatusEnum": "core.models.Invitation.Status",
+        "ApiTokenKindEnum": "core.models.ApiToken.Kind",
+        "MediaStatusEnum": "core.models.MediaAsset.Status",
     },
 }

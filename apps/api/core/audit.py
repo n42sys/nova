@@ -36,6 +36,7 @@ def audit(
     entry = AuditLog(
         organization=ctx.organization,
         actor_user=ctx.user if ctx.actor_type == ActorType.USER else None,
+        actor_token_id=ctx.api_token_id if ctx.actor_type == ActorType.TOKEN else None,
         action=action,
         target_type=target._meta.label_lower if target is not None else "",
         target_id=str(target.pk) if target is not None else "",

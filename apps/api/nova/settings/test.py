@@ -11,11 +11,18 @@ os.environ.setdefault("ALLOWED_HOSTS", "testserver,localhost")
 os.environ.setdefault("NOVA_EMAIL_FROM", "Nova <nova@nova.test>")
 os.environ.setdefault("CSRF_TRUSTED_ORIGINS", "http://admin.nova.test")
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://admin.nova.test")
+# moto stands in for R2: AWS-style endpoint and region, dummy credentials.
+os.environ.setdefault("R2_BUCKET", "nova-test-media")
+os.environ.setdefault("R2_ACCESS_KEY_ID", "testing")
+os.environ.setdefault("R2_SECRET_ACCESS_KEY", "testing")
+os.environ.setdefault("R2_PUBLIC_URL", "https://media.nova.test")
 
 from .base import *  # noqa: E402, F403
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+R2_REGION = "us-east-1"
 
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -23,3 +24,4 @@ class RequestContext:
     organization: Organization
     ip: str | None
     actor_type: ActorType
+    api_token_id: uuid.UUID | None = None  # set when actor_type is TOKEN

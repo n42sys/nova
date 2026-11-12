@@ -27,7 +27,7 @@ class AuditLog(TenantModel):
         blank=True,
         related_name="+",
     )
-    # ApiToken arrives in T8; stored as a plain id so history survives token changes.
+    # Plain id, not a FK, so audit history never constrains or follows the ApiToken row.
     actor_token_id = models.UUIDField(null=True, blank=True)
     action = models.CharField(max_length=100)
     target_type = models.CharField(max_length=100, blank=True)

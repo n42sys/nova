@@ -10,3 +10,13 @@ class SessionAuthenticationScheme(OpenApiAuthenticationExtension):
 
     def get_security_definition(self, auto_schema):
         return {"type": "apiKey", "in": "cookie", "name": settings.SESSION_COOKIE_NAME}
+
+
+class ApiTokenAuthenticationScheme(OpenApiAuthenticationExtension):
+    """OpenAPI security scheme for core.auth.ApiTokenAuthentication (delivery API)."""
+
+    target_class = "core.auth.ApiTokenAuthentication"
+    name = "apiToken"
+
+    def get_security_definition(self, auto_schema):
+        return {"type": "http", "scheme": "bearer", "bearerFormat": "nova_dlv_… / nova_prv_…"}
