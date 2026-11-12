@@ -1,0 +1,31 @@
+{
+  "name": "api-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript types and a typed fetch client for the Nova API, generated from its OpenAPI schema.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "schema": "cd ../../apps/api && uv run python manage.py spectacular --validate --fail-on-warn --file ../../packages/api-types/openapi.yaml",
+    "generate": "openapi-typescript openapi.yaml -o src/schema.d.ts",
+    "build": "tsc -p tsconfig.json && cp src/schema.d.ts dist/schema.d.ts",
+    "typecheck": "tsc -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

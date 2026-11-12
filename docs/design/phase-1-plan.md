@@ -208,8 +208,8 @@ R2 does not support presigned POST, so uploads use a presigned PUT.
 - Add a test that generates the schema and fails on spectacular warnings. (Added early in T6 as `core/tests/test_openapi.py`; every task keeps it green.)
 
 **Acceptance**
-- [ ] `spectacular --validate --fail-on-warn` passes.
-- [ ] `pnpm --filter api-types generate && pnpm --filter api-types build` succeeds.
+- [x] `spectacular --validate --fail-on-warn` passes.
+- [x] `pnpm --filter api-types generate && pnpm --filter api-types build` succeeds.
 
 ## T12 — Thin admin app
 

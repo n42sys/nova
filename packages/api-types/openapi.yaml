@@ -1,0 +1,1990 @@
+openapi: 3.0.3
+info:
+  title: Nova API
+  version: 0.1.0
+paths:
+  /api/manage/invitations/{token}/:
+    get:
+      operationId: invitation_preview
+      description: 'Public and read-only: what an invitation link offers. The token
+        is the credential.'
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreview'
+          description: ''
+  /api/manage/invitations/{token}/accept/:
+    post:
+      operationId: invitation_accept
+      description: |-
+        Logged-in user whose email matches the invitation joins its organization.
+
+        Status is checked by the service under a row lock, so a race cannot accept twice.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeOrganization'
+          description: ''
+  /api/manage/invitations/{token}/claim/:
+    post:
+      operationId: invitation_claim
+      description: 'Public: remember the invitation in this session so its invitee
+        can sign up.'
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/manage/me/:
+    get:
+      operationId: me_retrieve
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+          description: ''
+  /api/manage/orgs/{org}/:
+    get:
+      operationId: org_retrieve
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    patch:
+      operationId: org_update
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganizationUpdate'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/manage/orgs/{org}/audit-log/:
+    get:
+      operationId: audit_log_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          minLength: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogPage'
+          description: ''
+  /api/manage/orgs/{org}/invitations/:
+    get:
+      operationId: invitations_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+          description: ''
+    post:
+      operationId: invitations_create
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+  /api/manage/orgs/{org}/invitations/{invitation_id}/:
+    delete:
+      operationId: invitations_revoke
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/invitations/{invitation_id}/resend/:
+    post:
+      operationId: invitations_resend
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+  /api/manage/orgs/{org}/media/:
+    get:
+      operationId: media_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          minLength: 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+      - in: query
+        name: mime_prefix
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 1
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaPage'
+          description: ''
+    post:
+      operationId: media_confirm
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaConfirm'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MediaConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MediaConfirm'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+  /api/manage/orgs/{org}/media/{asset_id}/:
+    patch:
+      operationId: media_update
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaUpdate'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+    delete:
+      operationId: media_delete
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/media/uploads/:
+    post:
+      operationId: media_upload_request
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MediaUploadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MediaUploadRequest'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUpload'
+          description: ''
+  /api/manage/orgs/{org}/members/:
+    get:
+      operationId: members_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
+          description: ''
+  /api/manage/orgs/{org}/members/{membership_id}/:
+    patch:
+      operationId: members_update
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMemberUpdate'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+          description: ''
+    delete:
+      operationId: members_remove
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/members/{membership_id}/site-roles/{site_id}/:
+    put:
+      operationId: members_site_role_set
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteRoleWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SiteRoleWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SiteRoleWrite'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+          description: ''
+    delete:
+      operationId: members_site_role_remove
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: membership_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/payment-accounts/:
+    get:
+      operationId: payment_accounts_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentAccount'
+          description: ''
+    post:
+      operationId: payment_accounts_create
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentAccountCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentAccountCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentAccountCreate'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAccount'
+          description: ''
+  /api/manage/orgs/{org}/payment-accounts/{account_id}/:
+    patch:
+      operationId: payment_accounts_replace_keys
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPaymentAccountKeys'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPaymentAccountKeys'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPaymentAccountKeys'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAccount'
+          description: ''
+    delete:
+      operationId: payment_accounts_disable
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/payment-accounts/{account_id}/verify/:
+    post:
+      operationId: payment_accounts_verify
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: account_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAccount'
+          description: ''
+  /api/manage/orgs/{org}/sites/:
+    get:
+      operationId: sites_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+          description: ''
+    post:
+      operationId: sites_create
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SiteWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SiteWrite'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+          description: ''
+  /api/manage/orgs/{org}/sites/{site_id}/:
+    get:
+      operationId: sites_retrieve
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+          description: ''
+    patch:
+      operationId: sites_update
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSiteWrite'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+          description: ''
+    delete:
+      operationId: sites_archive
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/manage/orgs/{org}/sites/{site_id}/tokens/:
+    get:
+      operationId: api_tokens_list
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiToken'
+          description: ''
+    post:
+      operationId: api_tokens_create
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiTokenCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiTokenCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiTokenCreate'
+        required: true
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenCreated'
+          description: ''
+  /api/manage/orgs/{org}/sites/{site_id}/tokens/{token_id}/:
+    delete:
+      operationId: api_tokens_revoke
+      description: |-
+        Base for every `/api/manage/orgs/{org}/…` view.
+
+        Session auth only. After DRF authenticates the request (401 if anonymous), resolves the
+        `{org}` slug and the caller's membership, with site roles prefetched, and builds
+        `self.ctx` once for the request. Unknown org, suspended org and non-member all raise the
+        same NotFound, so tenants cannot probe for each other. `is_staff` grants nothing here.
+      parameters:
+      - in: path
+        name: org
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: site_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: token_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - manage
+      security:
+      - sessionAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/site/:
+    get:
+      operationId: delivery_site_retrieve
+      description: |-
+        Base for every `/api/v1/…` view: bearer API token only, never a session.
+
+        Exposes the token's `self.site` and `self.organization`, and `self.ctx` (actor TOKEN).
+        Delivery views must read only from `self.site`; a token never sees another site.
+      tags:
+      - v1
+      security:
+      - apiToken: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverySite'
+          description: ''
+components:
+  schemas:
+    ApiToken:
+      type: object
+      description: Never includes the secret or its hash.
+      properties:
+        id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ApiTokenKindEnum'
+        prefix:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - created_at
+      - id
+      - kind
+      - last_used_at
+      - name
+      - prefix
+      - revoked_at
+      - site_id
+    ApiTokenCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        kind:
+          $ref: '#/components/schemas/ApiTokenKindEnum'
+      required:
+      - kind
+      - name
+    ApiTokenCreated:
+      type: object
+      description: Never includes the secret or its hash.
+      properties:
+        id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ApiTokenKindEnum'
+        prefix:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        token:
+          type: string
+          description: The full token. Shown only once; store it now.
+      required:
+      - created_at
+      - id
+      - kind
+      - last_used_at
+      - name
+      - prefix
+      - revoked_at
+      - site_id
+      - token
+    ApiTokenKindEnum:
+      enum:
+      - delivery
+      - preview
+      type: string
+      description: |-
+        * `delivery` - Delivery
+        * `preview` - Preview
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        actor_user:
+          allOf:
+          - $ref: '#/components/schemas/UserSummary'
+          nullable: true
+        actor_token_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_type:
+          type: string
+        target_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: {}
+        ip:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - action
+      - actor_token_id
+      - actor_user
+      - created_at
+      - id
+      - ip
+      - metadata
+      - target_id
+      - target_type
+    AuditLogPage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        next_cursor:
+          type: string
+          nullable: true
+      required:
+      - next_cursor
+      - results
+    DeliverySite:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+      required:
+      - locale
+      - name
+      - slug
+      - timezone
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        site_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitationSiteRole'
+        status:
+          $ref: '#/components/schemas/InvitationStatusEnum'
+        invited_by:
+          allOf:
+          - $ref: '#/components/schemas/UserSummary'
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - accepted_at
+      - created_at
+      - email
+      - expires_at
+      - id
+      - invited_by
+      - org_role
+      - revoked_at
+      - site_roles
+      - status
+    InvitationCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        site_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitationSiteRole'
+      required:
+      - email
+    InvitationPreview:
+      type: object
+      properties:
+        organization:
+          $ref: '#/components/schemas/InvitationPreviewOrganization'
+        email:
+          type: string
+          format: email
+        invited_by_name:
+          type: string
+          nullable: true
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        site_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitationPreviewSiteRole'
+        expires_at:
+          type: string
+          format: date-time
+        account_exists:
+          type: boolean
+      required:
+      - account_exists
+      - email
+      - expires_at
+      - invited_by_name
+      - org_role
+      - organization
+      - site_roles
+    InvitationPreviewOrganization:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+      required:
+      - name
+      - slug
+    InvitationPreviewSiteRole:
+      type: object
+      properties:
+        site_id:
+          type: string
+          format: uuid
+        site_name:
+          type: string
+        role:
+          $ref: '#/components/schemas/SiteRoleEnum'
+      required:
+      - role
+      - site_id
+      - site_name
+    InvitationSiteRole:
+      type: object
+      properties:
+        site_id:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/SiteRoleEnum'
+      required:
+      - role
+      - site_id
+    InvitationStatusEnum:
+      enum:
+      - open
+      - expired
+      - accepted
+      - revoked
+      type: string
+      description: |-
+        * `open` - Open
+        * `expired` - Expired
+        * `accepted` - Accepted
+        * `revoked` - Revoked
+    Me:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        organizations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeOrganization'
+      required:
+      - email
+      - id
+      - name
+      - organizations
+    MeOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrganizationStatusEnum'
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        site_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SiteRoleSummary'
+      required:
+      - id
+      - name
+      - org_role
+      - site_roles
+      - slug
+      - status
+    MediaAsset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+          nullable: true
+        file_key:
+          type: string
+        url:
+          type: string
+          nullable: true
+          readOnly: true
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        alt_text:
+          type: string
+        status:
+          $ref: '#/components/schemas/MediaStatusEnum'
+        uploaded_by:
+          allOf:
+          - $ref: '#/components/schemas/UserSummary'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - alt_text
+      - created_at
+      - file_key
+      - height
+      - id
+      - mime_type
+      - site_id
+      - size_bytes
+      - status
+      - uploaded_by
+      - url
+      - width
+    MediaConfirm:
+      type: object
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        alt_text:
+          type: string
+          default: ''
+          maxLength: 500
+      required:
+      - asset_id
+    MediaPage:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+        next_cursor:
+          type: string
+          nullable: true
+      required:
+      - next_cursor
+      - results
+    MediaStatusEnum:
+      enum:
+      - pending
+      - ready
+      - deleting
+      - invalid
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `ready` - Ready
+        * `deleting` - Deleting
+        * `invalid` - Invalid
+    MediaUpload:
+      type: object
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        file_key:
+          type: string
+        upload_url:
+          type: string
+          format: uri
+        method:
+          type: string
+          default: PUT
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - asset_id
+      - expires_at
+      - file_key
+      - headers
+      - upload_url
+    MediaUploadRequest:
+      type: object
+      properties:
+        filename:
+          type: string
+          maxLength: 255
+        mime_type:
+          type: string
+          maxLength: 100
+        size_bytes:
+          type: integer
+          minimum: 1
+        site_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - filename
+      - mime_type
+      - size_bytes
+    Member:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        site_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SiteRoleSummary'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - org_role
+      - site_roles
+      - user
+    NullEnum:
+      enum:
+      - null
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrganizationStatusEnum'
+        features:
+          type: object
+          additionalProperties: {}
+      required:
+      - features
+      - id
+      - name
+      - slug
+      - status
+    OrganizationStatusEnum:
+      enum:
+      - active
+      - suspended
+      type: string
+      description: |-
+        * `active` - Active
+        * `suspended` - Suspended
+    PatchedMediaUpdate:
+      type: object
+      properties:
+        alt_text:
+          type: string
+          maxLength: 500
+    PatchedMemberUpdate:
+      type: object
+      properties:
+        org_role:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/NullEnum'
+    PatchedOrganizationUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+    PatchedPaymentAccountKeys:
+      type: object
+      description: Input only. `secret_key` is write-only and never echoed in errors.
+      properties:
+        public_key:
+          type: string
+          maxLength: 200
+        secret_key:
+          type: string
+          writeOnly: true
+          maxLength: 500
+    PatchedSiteWrite:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 63
+          pattern: ^[-a-zA-Z0-9_]+$
+        timezone:
+          type: string
+          maxLength: 64
+        default_locale:
+          type: string
+          maxLength: 16
+        settings:
+          type: object
+          additionalProperties: {}
+    PaymentAccount:
+      type: object
+      description: |-
+        What the API shows for a payment account. There is deliberately no field that could
+        carry the secret: only `secret_key_hint` (e.g. "sk_live_…a1b2").
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          $ref: '#/components/schemas/PaymentProviderEnum'
+        public_key:
+          type: string
+        secret_key_hint:
+          type: string
+        status:
+          $ref: '#/components/schemas/PaymentAccountStatusEnum'
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - provider
+      - public_key
+      - secret_key_hint
+      - status
+      - updated_at
+      - verified_at
+    PaymentAccountCreate:
+      type: object
+      description: Input only. `secret_key` is write-only and never echoed in errors.
+      properties:
+        public_key:
+          type: string
+          maxLength: 200
+        secret_key:
+          type: string
+          writeOnly: true
+          maxLength: 500
+        provider:
+          $ref: '#/components/schemas/PaymentProviderEnum'
+      required:
+      - provider
+      - public_key
+      - secret_key
+    PaymentAccountStatusEnum:
+      enum:
+      - pending
+      - verified
+      - disabled
+      type: string
+      description: |-
+        * `pending` - Pending verification
+        * `verified` - Verified
+        * `disabled` - Disabled
+    PaymentProviderEnum:
+      enum:
+      - paystack
+      - daraja
+      type: string
+      description: |-
+        * `paystack` - Paystack
+        * `daraja` - M-Pesa Daraja
+    RoleEnum:
+      enum:
+      - owner
+      - admin
+      - editor
+      - event_staff
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `admin` - Admin
+        * `editor` - Editor
+        * `event_staff` - Event staff
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        domain:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        default_locale:
+          type: string
+        settings:
+          type: object
+          additionalProperties: {}
+        status:
+          $ref: '#/components/schemas/SiteStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - default_locale
+      - domain
+      - id
+      - name
+      - settings
+      - slug
+      - status
+      - timezone
+      - updated_at
+    SiteRoleEnum:
+      enum:
+      - admin
+      - editor
+      - event_staff
+      type: string
+      description: |-
+        * `admin` - Admin
+        * `editor` - Editor
+        * `event_staff` - Event staff
+    SiteRoleSummary:
+      type: object
+      properties:
+        site_id:
+          type: string
+          format: uuid
+        site_slug:
+          type: string
+        site_name:
+          type: string
+        role:
+          $ref: '#/components/schemas/SiteRoleEnum'
+      required:
+      - role
+      - site_id
+      - site_name
+      - site_slug
+    SiteRoleWrite:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/SiteRoleEnum'
+      required:
+      - role
+    SiteStatusEnum:
+      enum:
+      - active
+      - archived
+      type: string
+      description: |-
+        * `active` - Active
+        * `archived` - Archived
+    SiteWrite:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 63
+          pattern: ^[-a-zA-Z0-9_]+$
+        timezone:
+          type: string
+          maxLength: 64
+        default_locale:
+          type: string
+          maxLength: 16
+        settings:
+          type: object
+          additionalProperties: {}
+      required:
+      - name
+      - slug
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+      required:
+      - email
+      - id
+      - name
+  securitySchemes:
+    apiToken:
+      type: http
+      scheme: bearer
+      bearerFormat: nova_dlv_… / nova_prv_…
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
