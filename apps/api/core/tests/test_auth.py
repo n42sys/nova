@@ -7,8 +7,8 @@ from django.core import mail
 from django.test import Client
 
 from core.auth_adapter import AccountAdapter
-from core.tests.conftest import PASSWORD
 from core.tests.factories import UserFactory
+from core.tests.support import PASSWORD
 
 pytestmark = pytest.mark.django_db
 

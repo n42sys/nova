@@ -11,6 +11,8 @@ os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1")
 os.environ.setdefault("CSRF_TRUSTED_ORIGINS", "http://localhost:3000")
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 os.environ.setdefault("NOVA_EMAIL_FROM", "Nova <nova@localhost>")
+# Dev-only key, committed on purpose; never use it outside local development.
+os.environ.setdefault("NOVA_FERNET_KEYS", "ZlRw-DDZW-EKYyZ6LFXdtbIU0KHvwbl7IvpP74nDlRM=")
 
 from .base import *  # noqa: E402, F403
 

@@ -5,7 +5,13 @@ from rest_framework import exceptions as drf_exceptions
 from rest_framework.test import APIRequestFactory
 from rest_framework.views import APIView
 
-from core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
+from core.exceptions import (
+    Conflict,
+    NotFound,
+    PermissionDenied,
+    ProviderUnavailable,
+    ValidationFailed,
+)
 
 
 def _call(exc: Exception):
@@ -31,6 +37,7 @@ def _assert_shape(data):
         (PermissionDenied(), 403, "permission_denied"),
         (ValidationFailed(), 400, "validation_failed"),
         (Conflict(), 409, "conflict"),
+        (ProviderUnavailable(), 503, "provider_unavailable"),
     ],
 )
 def test_domain_exceptions_map_to_status_and_code(exc, status, code):
@@ -85,3 +92,14 @@ def test_drf_and_django_exceptions_use_same_shape(exc, status, code):
 def test_unhandled_exceptions_are_not_swallowed():
     with pytest.raises(RuntimeError):
         _call(RuntimeError("boom"))
+
+
+def test_provider_unavailable_sets_retry_after():
+    response = _call(ProviderUnavailable())
+
+    assert response.status_code == 503
+    assert response["Retry-After"] == "30"
+
+
+def test_other_domain_errors_set_no_retry_after():
+    assert "Retry-After" not in _call(Conflict())

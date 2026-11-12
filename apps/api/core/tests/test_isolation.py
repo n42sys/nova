@@ -41,6 +41,9 @@ from core.tests.factories import (
     UserFactory,
 )
 from core.tokens import new_api_token, new_invitation_token
+from payments.models import PaymentAccount
+from payments.providers import PROVIDERS
+from payments.tests.factories import PaymentAccountFactory
 
 MANAGE_PREFIX = "api/manage/"
 NOT_FOUND = {"error": {"code": "not_found", "message": "Not found.", "details": None}}
@@ -115,6 +118,27 @@ ENDPOINTS: list[Endpoint] = [
         kwargs=("org", "asset_id"),
         methods={"PATCH": {"alt_text": "Renamed by intruder"}, "DELETE": None},
     ),
+    Endpoint(
+        "payment-account-list",
+        kwargs=("org",),
+        methods={
+            "GET": None,
+            "POST": {
+                "provider": "paystack",
+                "public_key": "pk_test_" + "c" * 32,
+                "secret_key": "sk_test_" + "d" * 32,
+            },
+        },
+    ),
+    Endpoint(
+        "payment-account-detail",
+        kwargs=("org", "account_id"),
+        methods={
+            "PATCH": {"public_key": "pk_test_" + "e" * 32, "secret_key": "sk_test_" + "f" * 32},
+            "DELETE": None,
+        },
+    ),
+    Endpoint("payment-account-verify", kwargs=("org", "account_id"), methods={"POST": None}),
     Endpoint("member-list", kwargs=("org",), methods={"GET": None}),
     Endpoint(
         "member-detail",
@@ -165,6 +189,7 @@ class Tenant:
     api_token: ApiToken | None = None
     asset: MediaAsset | None = None  # ready, with its R2 object
     pending_asset: MediaAsset | None = None  # uploaded but not yet confirmed
+    payment_account: PaymentAccount | None = None
 
     def url_kwargs(self) -> dict[str, Any]:
         return {
@@ -174,6 +199,7 @@ class Tenant:
             "invitation_id": self.invitation.id,
             "token_id": self.api_token.id,
             "asset_id": self.asset.id,
+            "account_id": self.payment_account.id,
         }
 
     def markers(self) -> list[str]:
@@ -188,6 +214,8 @@ class Tenant:
         for asset in (self.asset, self.pending_asset):
             values += [str(asset.id), asset.file_key]
         values.append(self.asset.alt_text)
+        account = self.payment_account
+        values += [str(account.id), account.public_key, account.secret_key_hint]
         return values
 
     def snapshot(self) -> dict[str, Any]:
@@ -200,6 +228,7 @@ class Tenant:
             "invitations": list(Invitation.objects.for_org(org).order_by("id").values()),
             "api_tokens": list(ApiToken.objects.for_org(org).order_by("id").values()),
             "media": list(MediaAsset.objects.for_org(org).order_by("id").values()),
+            "payment_accounts": list(PaymentAccount.objects.for_org(org).order_by("id").values()),
             "r2_objects": sorted(
                 item["Key"]
                 for item in storage._client()
@@ -271,6 +300,11 @@ def build_tenant(label: str, s3) -> Tenant:
         tenant, s3, status=MediaAsset.Status.READY, name="poster", alt_text=f"Tenant {label} poster"
     )
     tenant.pending_asset = _media(tenant, s3, status=MediaAsset.Status.PENDING, name="flyer")
+    tenant.payment_account = PaymentAccountFactory(
+        organization=org,
+        public_key=f"pk_test_tenant{label}" + "p" * 24,
+        secret_key=f"sk_test_tenant{label}" + "s" * 24,
+    )
     return tenant
 
 
@@ -278,6 +312,18 @@ def build_tenant(label: str, s3) -> Tenant:
 class World:
     a: Tenant
     b: Tenant
+
+
+class _AcceptingProvider:
+    """Stands in for Paystack so the suite never makes a network call."""
+
+    def verify_credentials(self, account: PaymentAccount) -> None:
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _no_network_payments(monkeypatch):
+    monkeypatch.setitem(PROVIDERS, PaymentAccount.Provider.PAYSTACK, _AcceptingProvider())
 
 
 @pytest.fixture
@@ -383,24 +429,31 @@ def test_same_tenant_control_is_not_404(endpoint: Endpoint, method: str, world: 
 # Coverage: every /api/manage/ route is registered
 
 
-def _manage_routes() -> dict[str | None, URLPattern]:
-    routes: dict[str | None, URLPattern] = {}
+@dataclass(frozen=True)
+class Route:
+    pattern: URLPattern
+    kwargs: frozenset[str]  # URL kwargs from the whole path, including include() prefixes
 
-    def walk(patterns, prefix: str) -> None:
+
+def _manage_routes() -> dict[str, Route]:
+    routes: dict[str, Route] = {}
+
+    def walk(patterns, prefix: str, kwargs: frozenset[str]) -> None:
         for pattern in patterns:
             route = prefix + str(pattern.pattern)
+            route_kwargs = kwargs | set(pattern.pattern.converters)
             if isinstance(pattern, URLResolver):
-                walk(pattern.url_patterns, route)
+                walk(pattern.url_patterns, route, route_kwargs)
             elif route.startswith(MANAGE_PREFIX):
                 assert pattern.name, f"Unnamed management route {route!r}"
-                routes[pattern.name] = pattern
+                routes[pattern.name] = Route(pattern=pattern, kwargs=route_kwargs)
 
-    walk(get_resolver().url_patterns, "")
+    walk(get_resolver().url_patterns, "", frozenset())
     return routes
 
 
-def _view_methods(pattern: URLPattern) -> set[str]:
-    view = getattr(pattern.callback, "view_class", None) or pattern.callback.cls
+def _view_methods(route: Route) -> set[str]:
+    view = getattr(route.pattern.callback, "view_class", None) or route.pattern.callback.cls
     return {method.upper() for method in HTTP_METHODS if hasattr(view, method)}
 
 
@@ -455,9 +508,9 @@ def test_registered_methods_match_the_view(endpoint: Endpoint):
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda e: e.name)
 def test_registered_kwargs_match_the_route(endpoint: Endpoint):
-    pattern = _manage_routes()[endpoint.name]
+    route = _manage_routes()[endpoint.name]
 
-    assert set(endpoint.kwargs) == set(pattern.pattern.converters)
+    assert set(endpoint.kwargs) == route.kwargs
     assert "org" in endpoint.kwargs
 
 

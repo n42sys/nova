@@ -116,6 +116,9 @@ R2_ENDPOINT_URL = (
     or None
 )
 R2_REGION = "auto"
+
+# Payments
+PAYSTACK_API_BASE_URL = env("PAYSTACK_API_BASE_URL", default="https://api.paystack.co")
 # Largest accepted upload, in bytes.
 NOVA_MEDIA_MAX_BYTES = env.int("NOVA_MEDIA_MAX_BYTES", default=25 * 1024 * 1024)
 
@@ -180,5 +183,7 @@ SPECTACULAR_SETTINGS = {
         "InvitationStatusEnum": "core.models.Invitation.Status",
         "ApiTokenKindEnum": "core.models.ApiToken.Kind",
         "MediaStatusEnum": "core.models.MediaAsset.Status",
+        "PaymentProviderEnum": "payments.models.PaymentAccount.Provider",
+        "PaymentAccountStatusEnum": "payments.models.PaymentAccount.Status",
     },
 }

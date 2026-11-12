@@ -14,6 +14,7 @@ class NovaError(Exception):
     status_code = status.HTTP_400_BAD_REQUEST
     code = "error"
     default_message = "Something went wrong."
+    headers: dict[str, str] = {}  # extra response headers
 
     def __init__(self, message: str | None = None, *, details: Any = None) -> None:
         self.message = str(message) if message is not None else self.default_message
@@ -45,6 +46,15 @@ class Conflict(NovaError):
     default_message = "Conflict."
 
 
+class ProviderUnavailable(NovaError):
+    """An external provider (e.g. Paystack) could not be reached or failed (5xx). Retry later."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "provider_unavailable"
+    default_message = "The provider could not be reached. Try again shortly."
+    headers = {"Retry-After": "30"}
+
+
 class Gone(NovaError):
     """A resource that existed but can no longer be used, e.g. an expired invitation."""
 
@@ -60,7 +70,11 @@ def _error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 def exception_handler(exc: Exception, context: dict[str, Any]) -> Response | None:
     """Render domain and DRF exceptions as `{"error": {"code", "message", "details"}}`."""
     if isinstance(exc, NovaError):
-        return Response(_error_body(exc.code, exc.message, exc.details), status=exc.status_code)
+        return Response(
+            _error_body(exc.code, exc.message, exc.details),
+            status=exc.status_code,
+            headers=exc.headers or None,
+        )
 
     if isinstance(exc, Http404):
         exc = drf_exceptions.NotFound()

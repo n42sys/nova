@@ -18,7 +18,6 @@ from core.models import AuditLog, Invitation, Organization, Role, Site, SiteRole
 from core.selectors.memberships import get_membership
 from core.selectors.token_resolution import resolve_invitation_token
 from core.services.invitations import invite_member
-from core.tests.conftest import PASSWORD
 from core.tests.factories import (
     MembershipFactory,
     OrganizationFactory,
@@ -26,6 +25,7 @@ from core.tests.factories import (
     SiteRoleFactory,
     UserFactory,
 )
+from core.tests.support import PASSWORD
 from core.tokens import hash_token, is_well_formed_invitation_token, new_invitation_token
 
 pytestmark = pytest.mark.django_db

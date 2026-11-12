@@ -27,6 +27,7 @@ Keep `.env.example` in `apps/api/` in sync with this list.
 | `RESEND_API_KEY`, `NOVA_EMAIL_FROM` | Transactional email |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` | Media storage |
 | `R2_ENDPOINT_URL` | Optional S3 endpoint override (defaults to the R2 endpoint for `R2_ACCOUNT_ID`) |
+| `PAYSTACK_API_BASE_URL` | Paystack API base URL (default `https://api.paystack.co`) |
 | `NOVA_MEDIA_MAX_BYTES` | Largest accepted upload in bytes (default 25 MB) |
 
 ---
@@ -191,13 +192,14 @@ R2 does not support presigned POST, so uploads use a presigned PUT.
 - `core/crypto.py`: `encrypt(str) -> bytes`, `decrypt(bytes) -> str` using `MultiFernet` built from `NOVA_FERNET_KEYS`. Management command `rotate_payment_secrets` re-encrypts all rows with the newest key.
 - `PaymentAccount(TenantModel)` per design doc.
 - `payments/providers/base.py`: `PaymentProvider` Protocol with `verify_credentials(account) -> None` (raises on failure). Checkout methods are added in Phase 4.
-- `payments/providers/paystack.py`: `verify_credentials` makes one authenticated, read-only request to the Paystack API with `httpx` (choose the endpoint from Paystack's current docs; mock it in tests).
+- `payments/providers/paystack.py`: `verify_credentials` makes one authenticated, read-only request with `httpx`: `GET /integration/payment_session_timeout` (requires the secret key, returns one integer). 401/403 → keys rejected (400); unreachable, 429 or 5xx → `core.exceptions.ProviderUnavailable` (503, `Retry-After: 30`). Mocked with `httpx.MockTransport` in tests.
+- Only Paystack accounts can be created in Phase 1; `daraja` stays a model choice but the API answers 400 "not supported yet".
 - Endpoints (owner only): `GET/POST /api/manage/orgs/{org}/payment-accounts/`, `PATCH …/{id}/` (replace keys), `POST …/{id}/verify/`, `DELETE …/{id}/` (sets `disabled`). Responses expose `provider`, `public_key`, `status`, `verified_at`, and a masked hint like `sk_live_…a1b2` — never the secret.
 
 **Acceptance**
-- [ ] Secret hygiene test: create an account and an API token, then assert neither raw secret appears in any API response body, captured log record (`caplog`) or audit metadata.
-- [ ] Test: non-owners get 403 on every payment-account endpoint (404 if from another org).
-- [ ] Test: key rotation command decrypts old rows and re-encrypts with the new key.
+- [x] Secret hygiene test: create an account and an API token, then assert neither raw secret appears in any API response body, captured log record (`caplog`) or audit metadata.
+- [x] Test: non-owners get 403 on every payment-account endpoint (404 if from another org).
+- [x] Test: key rotation command decrypts old rows and re-encrypts with the new key.
 
 ## T11 — OpenAPI and shared types
 
