@@ -773,6 +773,8 @@ export interface components {
             status: components["schemas"]["OrganizationStatusEnum"];
             org_role: (components["schemas"]["RoleEnum"] | components["schemas"]["NullEnum"]) | null;
             site_roles: components["schemas"]["SiteRoleSummary"][];
+            /** @description Perms from the org role (org-wide). Per-site perms come with each site. */
+            readonly permissions: components["schemas"]["PermEnum"][];
         };
         MediaAsset: {
             /** Format: uuid */
@@ -918,6 +920,36 @@ export interface components {
          */
         PaymentProviderEnum: "paystack" | "daraja";
         /**
+         * @description * `site.view` - site.view
+         *     * `sites.manage` - sites.manage
+         *     * `content.view` - content.view
+         *     * `content.edit` - content.edit
+         *     * `content.publish` - content.publish
+         *     * `forms.view` - forms.view
+         *     * `forms.edit` - forms.edit
+         *     * `forms.publish` - forms.publish
+         *     * `forms.submissions.view` - forms.submissions.view
+         *     * `events.view` - events.view
+         *     * `events.view_assigned` - events.view_assigned
+         *     * `events.edit` - events.edit
+         *     * `events.publish` - events.publish
+         *     * `events.attendees.view` - events.attendees.view
+         *     * `events.attendees.view_assigned` - events.attendees.view_assigned
+         *     * `tickets.check_in` - tickets.check_in
+         *     * `media.upload` - media.upload
+         *     * `media.delete` - media.delete
+         *     * `api_tokens.manage` - api_tokens.manage
+         *     * `org.manage` - org.manage
+         *     * `members.view` - members.view
+         *     * `members.manage` - members.manage
+         *     * `audit.view` - audit.view
+         *     * `payments.manage` - payments.manage
+         *     * `org.transfer_ownership` - org.transfer_ownership
+         *     * `org.delete` - org.delete
+         * @enum {string}
+         */
+        PermEnum: "site.view" | "sites.manage" | "content.view" | "content.edit" | "content.publish" | "forms.view" | "forms.edit" | "forms.publish" | "forms.submissions.view" | "events.view" | "events.view_assigned" | "events.edit" | "events.publish" | "events.attendees.view" | "events.attendees.view_assigned" | "tickets.check_in" | "media.upload" | "media.delete" | "api_tokens.manage" | "org.manage" | "members.view" | "members.manage" | "audit.view" | "payments.manage" | "org.transfer_ownership" | "org.delete";
+        /**
          * @description * `owner` - Owner
          *     * `admin` - Admin
          *     * `editor` - Editor
@@ -941,6 +973,8 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /** @description The caller's perms on this site (needs `membership` in the context). */
+            readonly permissions: components["schemas"]["PermEnum"][];
         };
         /**
          * @description * `admin` - Admin

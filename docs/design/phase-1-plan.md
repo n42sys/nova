@@ -221,7 +221,7 @@ Enough UI to run Culture & Interest's setup; polish comes in later phases.
 - Hide UI for actions the current role lacks, but rely on the API for enforcement.
 
 **Acceptance**
-- [ ] Manual run-through: invite a second user as `editor` on one site and `event_staff` on another, accept, and confirm what each screen allows.
+- [x] Manual run-through: invite a second user as `editor` on one site and `event_staff` on another, accept, and confirm what each screen allows.
 
 ## T13 — Deployment (VPS)
 

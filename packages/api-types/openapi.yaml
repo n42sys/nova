@@ -1528,10 +1528,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SiteRoleSummary'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermEnum'
+          readOnly: true
+          description: Perms from the org role (org-wide). Per-site perms come with
+            each site.
       required:
       - id
       - name
       - org_role
+      - permissions
       - site_roles
       - slug
       - status
@@ -1848,6 +1856,62 @@ components:
       description: |-
         * `paystack` - Paystack
         * `daraja` - M-Pesa Daraja
+    PermEnum:
+      enum:
+      - site.view
+      - sites.manage
+      - content.view
+      - content.edit
+      - content.publish
+      - forms.view
+      - forms.edit
+      - forms.publish
+      - forms.submissions.view
+      - events.view
+      - events.view_assigned
+      - events.edit
+      - events.publish
+      - events.attendees.view
+      - events.attendees.view_assigned
+      - tickets.check_in
+      - media.upload
+      - media.delete
+      - api_tokens.manage
+      - org.manage
+      - members.view
+      - members.manage
+      - audit.view
+      - payments.manage
+      - org.transfer_ownership
+      - org.delete
+      type: string
+      description: |-
+        * `site.view` - site.view
+        * `sites.manage` - sites.manage
+        * `content.view` - content.view
+        * `content.edit` - content.edit
+        * `content.publish` - content.publish
+        * `forms.view` - forms.view
+        * `forms.edit` - forms.edit
+        * `forms.publish` - forms.publish
+        * `forms.submissions.view` - forms.submissions.view
+        * `events.view` - events.view
+        * `events.view_assigned` - events.view_assigned
+        * `events.edit` - events.edit
+        * `events.publish` - events.publish
+        * `events.attendees.view` - events.attendees.view
+        * `events.attendees.view_assigned` - events.attendees.view_assigned
+        * `tickets.check_in` - tickets.check_in
+        * `media.upload` - media.upload
+        * `media.delete` - media.delete
+        * `api_tokens.manage` - api_tokens.manage
+        * `org.manage` - org.manage
+        * `members.view` - members.view
+        * `members.manage` - members.manage
+        * `audit.view` - audit.view
+        * `payments.manage` - payments.manage
+        * `org.transfer_ownership` - org.transfer_ownership
+        * `org.delete` - org.delete
     RoleEnum:
       enum:
       - owner
@@ -1889,12 +1953,20 @@ components:
         updated_at:
           type: string
           format: date-time
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermEnum'
+          readOnly: true
+          description: The caller's perms on this site (needs `membership` in the
+            context).
       required:
       - created_at
       - default_locale
       - domain
       - id
       - name
+      - permissions
       - settings
       - slug
       - status

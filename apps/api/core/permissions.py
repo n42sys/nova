@@ -128,6 +128,13 @@ ORG_ONLY_PERMS: frozenset[Perm] = frozenset(
 )
 
 
+def member_permissions(membership: Membership | None, site: Site | None = None) -> list[str]:
+    """Every perm the member holds, resolved like `require()`: on `site` if given (org-only
+    perms still from org_role), else from org_role alone. For UIs deciding what to show;
+    the API still enforces each action."""
+    return sorted(perm.value for perm in Perm if member_has_perm(membership, perm, site))
+
+
 def member_has_perm(membership: Membership | None, perm: Perm, site: Site | None = None) -> bool:
     """Whether `membership` holds `perm` (on `site`, if given). See `require()`."""
     if membership is None:

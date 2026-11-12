@@ -29,6 +29,10 @@ class OrgScopedAPIView(APIView):
         super().initial(request, *args, **kwargs)
         self.ctx = self.build_context(request, kwargs[self.org_url_kwarg])
 
+    def serializer_context(self) -> dict:
+        """Context for serializers that report the caller's permissions."""
+        return {"membership": self.ctx.membership}
+
     @staticmethod
     def build_context(request: Request, org_slug: str) -> RequestContext:
         organization = get_active_organization(org_slug)

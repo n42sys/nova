@@ -27,7 +27,12 @@ def test_me_lists_orgs_with_roles_and_status(browser):
 
     assert response.status_code == 200
     org = site_role.organization
-    assert response.json() == {
+    body = response.json()
+    site_only_perms, admin_perms = (o.pop("permissions") for o in body["organizations"])
+    assert site_only_perms == []  # no org role: everything comes per site
+    assert {"members.manage", "sites.manage", "audit.view"} <= set(admin_perms)
+    assert "payments.manage" not in admin_perms
+    assert body == {
         "id": str(user.id),
         "email": user.email,
         "name": user.name,

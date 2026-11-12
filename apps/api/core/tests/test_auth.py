@@ -94,3 +94,71 @@ def test_self_signup_is_closed(browser):
 
 def test_only_browser_client_is_exposed(browser):
     assert browser.get("/_allauth/app/v1/config").status_code == 404
+
+
+# Password reset (admin pages: /account/password/reset and /account/password/reset/key/<key>)
+
+
+def _reset_key_from_outbox(settings) -> str:
+    match = re.search(
+        rf"{re.escape(settings.NOVA_ADMIN_URL)}/account/password/reset/key/(\S+)",
+        mail.outbox[-1].body,
+    )
+    assert match, mail.outbox[-1].body
+    return match.group(1)
+
+
+def test_password_reset_flow(browser, verified_user, settings):
+    response = browser.send("post", f"{AUTH}/auth/password/request", {"email": verified_user.email})
+    assert response.status_code == 200
+    key = _reset_key_from_outbox(settings)
+
+    check = browser.get(f"{AUTH}/auth/password/reset", HTTP_X_PASSWORD_RESET_KEY=key)
+    assert check.status_code == 200
+    assert check.json()["data"]["user"]["email"] == verified_user.email
+
+    reset = browser.send(
+        "post", f"{AUTH}/auth/password/reset", {"key": key, "password": "a-brand-new-passphrase"}
+    )
+    assert reset.status_code == 401  # password changed; not logged in automatically
+    assert _login(browser, verified_user.email, "a-brand-new-passphrase").status_code == 200
+
+    reused = browser.send(
+        "post", f"{AUTH}/auth/password/reset", {"key": key, "password": "another-passphrase-1"}
+    )
+    assert reused.status_code in {400, 409}  # a key works once
+
+
+def test_password_reset_request_does_not_reveal_unknown_emails(browser):
+    response = browser.send(
+        "post", f"{AUTH}/auth/password/request", {"email": "nobody@example.com"}
+    )
+
+    assert response.status_code == 200
+
+
+def test_invalid_reset_key_is_rejected(browser):
+    response = browser.get(f"{AUTH}/auth/password/reset", HTTP_X_PASSWORD_RESET_KEY="bogus-key")
+
+    assert response.status_code == 400
+
+
+def test_reset_rejects_weak_passwords(browser, verified_user, settings):
+    browser.send("post", f"{AUTH}/auth/password/request", {"email": verified_user.email})
+    key = _reset_key_from_outbox(settings)
+
+    response = browser.send("post", f"{AUTH}/auth/password/reset", {"key": key, "password": "123"})
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["param"] == "password"
+
+
+def test_cors_preflight_allows_the_reset_key_header(client, settings):
+    response = client.options(
+        f"{AUTH}/auth/password/reset",
+        HTTP_ORIGIN=settings.CORS_ALLOWED_ORIGINS[0],
+        HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS="x-password-reset-key",
+    )
+
+    assert "x-password-reset-key" in response["Access-Control-Allow-Headers"]

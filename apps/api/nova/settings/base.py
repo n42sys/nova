@@ -4,6 +4,7 @@ from pathlib import Path
 
 import environ
 from celery.schedules import crontab
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -143,6 +144,8 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
 CORS_ALLOW_CREDENTIALS = True
+# allauth headless sends the password reset key in this header (admin reset page).
+CORS_ALLOW_HEADERS = (*default_headers, "x-password-reset-key")
 
 # Auth (django-allauth, headless only, browser sessions only)
 ACCOUNT_LOGIN_METHODS = {"email"}
@@ -185,5 +188,6 @@ SPECTACULAR_SETTINGS = {
         "MediaStatusEnum": "core.models.MediaAsset.Status",
         "PaymentProviderEnum": "payments.models.PaymentAccount.Provider",
         "PaymentAccountStatusEnum": "payments.models.PaymentAccount.Status",
+        "PermEnum": "core.api.serializers.PERM_CHOICES",
     },
 }

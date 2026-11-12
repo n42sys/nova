@@ -6,6 +6,7 @@ from django.urls import reverse
 from core.context import ActorType, RequestContext
 from core.exceptions import ValidationFailed
 from core.models import AuditLog, Organization, Role, Site
+from core.permissions import Perm
 from core.services.sites import create_site, update_site
 from core.tests.factories import (
     MembershipFactory,
@@ -299,3 +300,33 @@ def test_site_service_rejects_timezones_outside_zoneinfo(org, timezone):
     assert create_site(ctx, name="Y", slug="y", timezone="America/Port_of_Spain").timezone == (
         "America/Port_of_Spain"
     )
+
+
+# Caller permissions reported with each site (for the admin UI; the API still enforces)
+
+
+def test_sites_report_the_callers_permissions_per_site(browser, org, sites):
+    _member(browser, org, None, {sites["main"]: Role.ADMIN, sites["events"]: Role.EVENT_STAFF})
+
+    by_slug = {
+        site["slug"]: set(site["permissions"]) for site in browser.get(_list_url(org)).json()
+    }
+
+    assert {"sites.manage", "api_tokens.manage", "content.edit"} <= by_slug["main"]
+    assert by_slug["events"] == {
+        "site.view",
+        "events.view_assigned",
+        "events.attendees.view_assigned",
+        "tickets.check_in",
+    }
+    assert "members.manage" not in by_slug["main"]  # org-only perms never come from a site role
+    detail = browser.get(_detail_url(sites["events"])).json()
+    assert set(detail["permissions"]) == by_slug["events"]
+
+
+def test_owner_permissions_on_a_site_include_everything(browser, org, sites):
+    _member(browser, org, Role.OWNER)
+
+    permissions = browser.get(_detail_url(sites["main"])).json()["permissions"]
+
+    assert set(permissions) == {perm.value for perm in Perm}

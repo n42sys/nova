@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from core import storage
@@ -10,6 +11,9 @@ from core.models import (
     Role,
     Site,
 )
+from core.permissions import Perm, member_permissions
+
+PERM_CHOICES = [(perm.value, perm.value) for perm in Perm]
 
 
 class SiteRoleSummarySerializer(serializers.Serializer):
@@ -28,6 +32,13 @@ class MeOrganizationSerializer(serializers.Serializer):
     )
     org_role = serializers.ChoiceField(choices=Role.choices, allow_null=True)
     site_roles = SiteRoleSummarySerializer(many=True)
+    permissions = serializers.SerializerMethodField(
+        help_text="Perms from the org role (org-wide). Per-site perms come with each site."
+    )
+
+    @extend_schema_field(serializers.ListField(child=serializers.ChoiceField(choices=PERM_CHOICES)))
+    def get_permissions(self, membership) -> list[str]:
+        return member_permissions(membership)
 
 
 class MeSerializer(serializers.Serializer):
@@ -60,6 +71,13 @@ class SiteSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Site.Status.choices)
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+    permissions = serializers.SerializerMethodField(
+        help_text="The caller's perms on this site (needs `membership` in the context)."
+    )
+
+    @extend_schema_field(serializers.ListField(child=serializers.ChoiceField(choices=PERM_CHOICES)))
+    def get_permissions(self, site) -> list[str]:
+        return member_permissions(self.context.get("membership"), site)
 
 
 class SiteWriteSerializer(serializers.Serializer):

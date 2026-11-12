@@ -104,7 +104,7 @@ class SiteListView(OrgScopedAPIView):
     @extend_schema(operation_id="sites_list", responses=SiteSerializer(many=True))
     def get(self, request: Request, org: str) -> Response:
         sites = list_sites(self.ctx.organization, membership=self.ctx.membership)
-        return Response(SiteSerializer(sites, many=True).data)
+        return Response(SiteSerializer(sites, many=True, context=self.serializer_context()).data)
 
     @extend_schema(
         operation_id="sites_create", request=SiteWriteSerializer, responses={201: SiteSerializer}
@@ -113,7 +113,10 @@ class SiteListView(OrgScopedAPIView):
         data = SiteWriteSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         site = create_site(self.ctx, **data.validated_data)
-        return Response(SiteSerializer(site).data, status=status.HTTP_201_CREATED)
+        return Response(
+            SiteSerializer(site, context=self.serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class SiteDetailView(OrgScopedAPIView):
@@ -125,7 +128,9 @@ class SiteDetailView(OrgScopedAPIView):
 
     @extend_schema(operation_id="sites_retrieve", responses=SiteSerializer)
     def get(self, request: Request, org: str, site_id) -> Response:
-        return Response(SiteSerializer(self.get_site(site_id)).data)
+        return Response(
+            SiteSerializer(self.get_site(site_id), context=self.serializer_context()).data
+        )
 
     @extend_schema(
         operation_id="sites_update",
@@ -136,7 +141,8 @@ class SiteDetailView(OrgScopedAPIView):
         site = self.get_site(site_id)
         data = SiteWriteSerializer(data=request.data, partial=True)
         data.is_valid(raise_exception=True)
-        return Response(SiteSerializer(update_site(self.ctx, site, **data.validated_data)).data)
+        site = update_site(self.ctx, site, **data.validated_data)
+        return Response(SiteSerializer(site, context=self.serializer_context()).data)
 
     @extend_schema(operation_id="sites_archive", responses={204: None})
     def delete(self, request: Request, org: str, site_id) -> Response:

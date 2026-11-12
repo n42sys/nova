@@ -1,0 +1,26 @@
+{
+  "name": "admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter api-types build && next dev --port 3000",
+    "build": "pnpm --filter api-types build && next build",
+    "start": "next start --port 3000",
+    "typecheck": "pnpm --filter api-types build && tsc --noEmit"
+  },
+  "dependencies": {
+    "api-types": "workspace:*",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3"
+  }
+}
