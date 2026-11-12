@@ -242,11 +242,12 @@ Enough UI to run Culture & Interest's setup; polish comes in later phases.
 ## T14 — Seed Culture & Interest
 
 - Management command `bootstrap_org --name "Culture & Interest" --slug culture-interest --owner-email <email> --site "Main:main"` creating the org, its first site, and an owner invitation.
-- Org `features`: `{"forms": true, "events": true, "content": true}`.
+- Org `features`: `{"forms": true, "events": true, "content": true}` (`--features` to change; existing orgs only gain features).
+- Runs as the system actor through `core.services.bootstrap.bootstrap_organization` (audited, no permission check). Re-running matches the org and sites by slug and sends no invitation if the owner is already a member or has an open owner invitation; `--resend` emails a fresh link. `--site` repeats for more sites.
 
 **Acceptance**
-- [ ] Command is idempotent (re-running does not duplicate anything).
-- [ ] The owner receives the invite, accepts, and completes setup through the admin.
+- [x] Command is idempotent (re-running does not duplicate anything).
+- [x] The owner receives the invite, accepts, and completes setup through the admin.
 
 ---
 

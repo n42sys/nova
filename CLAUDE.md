@@ -28,6 +28,8 @@ docker compose up -d                      # Postgres 17 + Redis (repo root)
 uv sync                                   # install Python deps
 uv run python manage.py migrate
 uv run python manage.py runserver
+uv run python manage.py bootstrap_org --name "Culture & Interest" --slug culture-interest \
+    --owner-email <email> --site "Main:main"   # idempotent; --resend for a fresh link
 uv run celery -A nova worker -l info
 uv run celery -A nova beat -l info         # scheduled jobs (media cleanup)
 uv run pytest                             # all tests

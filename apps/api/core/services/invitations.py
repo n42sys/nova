@@ -94,6 +94,16 @@ def invite_member(
     site_roles = _normalise_site_roles(ctx, site_roles)
     email = email.strip().lower()
 
+    return _issue_invitation(ctx, email=email, org_role=org_role, site_roles=site_roles)
+
+
+def _issue_invitation(
+    ctx: RequestContext, *, email: str, org_role: Role | None, site_roles: list[dict]
+) -> Invitation:
+    """Internal: create the invitation (revoking any open one for the email), audit it and
+    email the link on commit. No permission checks: callers do them (`invite_member`), or
+    run as the system (`bootstrap_organization`). `email` and `site_roles` are normalised.
+    """
     token, token_hash = new_invitation_token()
     with transaction.atomic():
         now = timezone.now()
@@ -147,6 +157,11 @@ def revoke_invitation(ctx: RequestContext, invitation: Invitation) -> Invitation
 def resend_invitation(ctx: RequestContext, invitation: Invitation) -> Invitation:
     """Email a fresh link. The old token stops working and the 7-day expiry restarts."""
     _require_can_manage(ctx, invitation)
+    return _reissue_invitation(ctx, invitation)
+
+
+def _reissue_invitation(ctx: RequestContext, invitation: Invitation) -> Invitation:
+    """Internal: rotate the token, restart the expiry, audit and email the new link."""
     with transaction.atomic():
         invitation = (
             Invitation.objects.for_org(ctx.organization)
