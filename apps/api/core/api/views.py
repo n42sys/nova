@@ -1,6 +1,6 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,8 +9,12 @@ from core.api.base import OrgScopedAPIView
 from core.api.serializers import (
     AuditLogPageSerializer,
     AuditLogQuerySerializer,
+    InvitationCreateSerializer,
+    InvitationPreviewSerializer,
+    InvitationSerializer,
     MemberSerializer,
     MemberUpdateSerializer,
+    MeOrganizationSerializer,
     MeSerializer,
     OrganizationSerializer,
     OrganizationUpdateSerializer,
@@ -18,12 +22,26 @@ from core.api.serializers import (
     SiteSerializer,
     SiteWriteSerializer,
 )
-from core.auth import SessionAuthentication
-from core.exceptions import NotFound
-from core.models import Membership, Role, Site
+from core.auth import SessionAuthentication, enforce_csrf
+from core.exceptions import Gone, NotFound
+from core.invitation_session import forget_invitation, remember_invitation
+from core.models import Invitation, Membership, Role, Site
+from core.request import get_client_ip
+from core.selectors.invitations import (
+    get_invitation,
+    invitation_preview,
+)
 from core.selectors.memberships import get_member, list_memberships_for_user
 from core.selectors.sites import get_site, get_visible_site, list_sites
+from core.selectors.token_resolution import resolve_invitation_token
 from core.services.audit import view_audit_log
+from core.services.invitations import (
+    accept_invitation,
+    invite_member,
+    resend_invitation,
+    revoke_invitation,
+    view_invitations,
+)
 from core.services.memberships import (
     change_org_role,
     remove_member,
@@ -178,3 +196,101 @@ class AuditLogView(OrgScopedAPIView):
         query.is_valid(raise_exception=True)
         page = view_audit_log(self.ctx, **query.validated_data)
         return Response(AuditLogPageSerializer(page).data)
+
+
+class InvitationListView(OrgScopedAPIView):
+    @extend_schema(operation_id="invitations_list", responses=InvitationSerializer(many=True))
+    def get(self, request: Request, org: str) -> Response:
+        return Response(InvitationSerializer(view_invitations(self.ctx), many=True).data)
+
+    @extend_schema(
+        operation_id="invitations_create",
+        request=InvitationCreateSerializer,
+        responses={201: InvitationSerializer},
+    )
+    def post(self, request: Request, org: str) -> Response:
+        data = InvitationCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        invitation = invite_member(self.ctx, **data.validated_data)
+        return Response(InvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+
+
+class InvitationLookupMixin:
+    def get_invitation(self, invitation_id) -> Invitation:
+        invitation = get_invitation(self.ctx.organization, invitation_id)
+        if invitation is None:
+            raise NotFound()
+        return invitation
+
+
+class InvitationDetailView(InvitationLookupMixin, OrgScopedAPIView):
+    @extend_schema(operation_id="invitations_revoke", responses={204: None})
+    def delete(self, request: Request, org: str, invitation_id) -> Response:
+        revoke_invitation(self.ctx, self.get_invitation(invitation_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InvitationResendView(InvitationLookupMixin, OrgScopedAPIView):
+    @extend_schema(operation_id="invitations_resend", request=None, responses=InvitationSerializer)
+    def post(self, request: Request, org: str, invitation_id) -> Response:
+        invitation = resend_invitation(self.ctx, self.get_invitation(invitation_id))
+        return Response(InvitationSerializer(invitation).data)
+
+
+class InvitationTokenMixin:
+    def resolve_open_invitation(self, token: str) -> Invitation:
+        invitation = resolve_invitation_token(token)
+        if invitation is None:
+            raise NotFound()
+        if invitation.status != Invitation.Status.OPEN:
+            raise Gone(
+                f"This invitation has {invitation.status}.", details={"status": invitation.status}
+            )
+        return invitation
+
+
+class InvitationPreviewView(InvitationTokenMixin, APIView):
+    """Public and read-only: what an invitation link offers. The token is the credential."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(operation_id="invitation_preview", responses=InvitationPreviewSerializer)
+    def get(self, request: Request, token: str) -> Response:
+        invitation = self.resolve_open_invitation(token)
+        return Response(InvitationPreviewSerializer(invitation_preview(invitation)).data)
+
+
+class InvitationClaimView(InvitationTokenMixin, APIView):
+    """Public: remember the invitation in this session so its invitee can sign up."""
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(operation_id="invitation_claim", request=None, responses={204: None})
+    def post(self, request: Request, token: str) -> Response:
+        enforce_csrf(request)
+        remember_invitation(request, self.resolve_open_invitation(token))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InvitationAcceptView(APIView):
+    """Logged-in user whose email matches the invitation joins its organization.
+
+    Status is checked by the service under a row lock, so a race cannot accept twice.
+    """
+
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="invitation_accept", request=None, responses=MeOrganizationSerializer
+    )
+    def post(self, request: Request, token: str) -> Response:
+        invitation = resolve_invitation_token(token)
+        if invitation is None:
+            raise NotFound()
+        membership = accept_invitation(request.user, invitation, ip=get_client_ip(request))
+        forget_invitation(request)
+        membership = get_member(membership.organization, membership.id)
+        return Response(MeOrganizationSerializer(membership).data)

@@ -21,4 +21,30 @@ urlpatterns = [
         name="member-site-role",
     ),
     path(f"{org}audit-log/", views.AuditLogView.as_view(), name="audit-log"),
+    path(f"{org}invitations/", views.InvitationListView.as_view(), name="invitation-list"),
+    path(
+        f"{org}invitations/<uuid:invitation_id>/",
+        views.InvitationDetailView.as_view(),
+        name="invitation-detail",
+    ),
+    path(
+        f"{org}invitations/<uuid:invitation_id>/resend/",
+        views.InvitationResendView.as_view(),
+        name="invitation-resend",
+    ),
+    path(
+        "invitations/<str:token>/",
+        views.InvitationPreviewView.as_view(),
+        name="invitation-preview",
+    ),
+    path(
+        "invitations/<str:token>/claim/",
+        views.InvitationClaimView.as_view(),
+        name="invitation-claim",
+    ),
+    path(
+        "invitations/<str:token>/accept/",
+        views.InvitationAcceptView.as_view(),
+        name="invitation-accept",
+    ),
 ]

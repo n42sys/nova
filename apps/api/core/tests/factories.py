@@ -1,6 +1,10 @@
-import factory
+import secrets
+from datetime import timedelta
 
-from core.models import AuditLog, Membership, Organization, Role, Site, SiteRole, User
+import factory
+from django.utils import timezone
+
+from core.models import AuditLog, Invitation, Membership, Organization, Role, Site, SiteRole, User
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -66,3 +70,16 @@ class AuditLogFactory(TenantFactory):
 
     organization = factory.SubFactory(OrganizationFactory)
     action = "test.action"
+
+
+class InvitationFactory(TenantFactory):
+    """Stores a random hash; tests needing a usable token go through invite_member()."""
+
+    class Meta:
+        model = Invitation
+
+    organization = factory.SubFactory(OrganizationFactory)
+    email = factory.Sequence(lambda n: f"invitee{n}@example.com")
+    org_role = Role.EDITOR
+    token_hash = factory.LazyFunction(lambda: secrets.token_hex(32))
+    expires_at = factory.LazyFunction(lambda: timezone.now() + timedelta(days=7))

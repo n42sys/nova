@@ -49,15 +49,23 @@ def _refuse_self(ctx: RequestContext, membership: Membership) -> None:
         raise PermissionDenied("You cannot change your own membership.")
 
 
-def _refuse_beyond_admin_scope(ctx: RequestContext, target: Membership, *roles: str | None) -> None:
-    """Owners may do anything here. Admins may act only on members below admin, and only
-    with roles below admin: `roles` are the roles being granted, changed or removed."""
+def require_can_grant(ctx: RequestContext, *roles: str | None) -> None:
+    """Owners may grant, change or remove any role; admins only roles below admin.
+
+    Shared with invitations, which follow the same limits.
+    """
     if ctx.membership.org_role == Role.OWNER:
         return
-    if target.org_role in PRIVILEGED_ROLES:
-        raise PermissionDenied("Only owners can manage owners and admins.")
     if PRIVILEGED_ROLES.intersection(roles):
         raise PermissionDenied("Only owners can grant, change or remove the owner or admin role.")
+
+
+def _refuse_beyond_admin_scope(ctx: RequestContext, target: Membership, *roles: str | None) -> None:
+    """Admins may act only on members below admin, and only with roles below admin: `roles`
+    are the roles being granted, changed or removed. Owners may do anything here."""
+    if ctx.membership.org_role != Role.OWNER and target.org_role in PRIVILEGED_ROLES:
+        raise PermissionDenied("Only owners can manage owners and admins.")
+    require_can_grant(ctx, *roles)
 
 
 def _lock_owner_ids(ctx: RequestContext) -> list[uuid.UUID]:

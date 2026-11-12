@@ -145,15 +145,16 @@ Rules: admins grant only `editor` or `event_staff` (org role or site role), cann
 
 - `Invitation(TenantModel)` per design doc, with `org_role` (nullable) and `site_roles` JSONB (`[{"site_id", "role"}]`). Validation: at least one of `org_role` or `site_roles`; `owner` only as `org_role`. Only owners can invite as `owner` or `admin` (org or site role); admins invite only `editor` / `event_staff`.
 - Token: 32 random bytes, URL-safe; store SHA-256 hash; 7-day expiry; re-inviting the same email revokes the previous open invite.
-- Endpoints: `GET/POST /api/manage/orgs/{org}/invitations/`, `DELETE …/invitations/{id}/`, `POST …/invitations/{id}/resend/`, and public `GET /api/manage/invitations/{token}/` (preview: org name, inviter, role) + `POST /api/manage/invitations/{token}/accept/` (requires a logged-in user whose email matches).
-- Accept runs in one transaction: create `Membership` (or update an existing one, merging roles), create `SiteRole` rows, mark accepted, audit.
+- Endpoints: `GET/POST /api/manage/orgs/{org}/invitations/`, `DELETE …/invitations/{id}/`, `POST …/invitations/{id}/resend/`, and public `GET /api/manage/invitations/{token}/` (read-only preview: org name, inviter, role), `POST /api/manage/invitations/{token}/claim/` (CSRF-protected; remembers the invitation in the session so the invitee can sign up) and `POST /api/manage/invitations/{token}/accept/` (requires a logged-in user whose email matches).
+- Tokens are resolved only in `core/selectors/token_resolution.py`, the one request-path module allowed to use `.unscoped` (rule 1).
+- Accept runs in one transaction: create `Membership` (or update an existing one, merging roles so no effective role is ever lowered), create `SiteRole` rows through `_set_site_role`, mark accepted, mark the email verified, audit.
 - Invite email sent by a Celery task through Resend, linking to `{NOVA_ADMIN_URL}/invite/{token}`.
 - The allauth account adapter (`core.auth_adapter.AccountAdapter`, closed since T5) opens sign-up only for an email with a valid open invitation. Accepting an invitation marks that email as verified.
 
 **Acceptance**
-- [ ] Tests: expired, revoked, already-accepted and wrong-email tokens all fail cleanly.
-- [ ] Test: accepting an invite with site roles produces the right `effective_role` per site.
-- [ ] Test: the raw token never appears in the database or audit log.
+- [x] Tests: expired, revoked, already-accepted and wrong-email tokens all fail cleanly.
+- [x] Test: accepting an invite with site roles produces the right `effective_role` per site.
+- [x] Test: the raw token never appears in the database or audit log.
 
 ## T8 — API tokens and the delivery skeleton
 

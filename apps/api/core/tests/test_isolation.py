@@ -16,15 +16,18 @@ from typing import Any
 
 import pytest
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
+from django.utils import timezone
 
-from core.models import AuditLog, Membership, Organization, Role, Site, SiteRole
+from core.models import AuditLog, Invitation, Membership, Organization, Role, Site, SiteRole
 from core.tests.factories import (
+    InvitationFactory,
     MembershipFactory,
     OrganizationFactory,
     SiteFactory,
     SiteRoleFactory,
     UserFactory,
 )
+from core.tokens import new_invitation_token
 
 MANAGE_PREFIX = "api/manage/"
 NOT_FOUND = {"error": {"code": "not_found", "message": "Not found.", "details": None}}
@@ -77,7 +80,23 @@ ENDPOINTS: list[Endpoint] = [
         methods={"PUT": {"role": "event_staff"}, "DELETE": None},
     ),
     Endpoint("audit-log", kwargs=("org",), methods={"GET": None}),
+    Endpoint(
+        "invitation-list",
+        kwargs=("org",),
+        methods={"GET": None, "POST": {"email": "intruder@example.com", "org_role": "editor"}},
+    ),
+    Endpoint("invitation-detail", kwargs=("org", "invitation_id"), methods={"DELETE": None}),
+    Endpoint("invitation-resend", kwargs=("org", "invitation_id"), methods={"POST": None}),
 ]
+
+# Token-scoped routes: no org in the URL; the raw token is the credential. Called by a member
+# of A with a random token and with B's dead (revoked) token, they must reveal nothing about B
+# and change nothing. Valid-token behaviour is tested in test_invitations.py.
+TOKEN_ENDPOINTS: dict[str, str] = {
+    "invitation-preview": "GET",
+    "invitation-claim": "POST",
+    "invitation-accept": "POST",
+}
 
 # Routes under /api/manage/ that are not tenant-scoped, with the reason.
 EXEMPT: dict[str, str] = {
@@ -94,12 +113,15 @@ class Tenant:
     org: Organization
     sites: dict[str, Site] = field(default_factory=dict)
     members: dict[str, Membership] = field(default_factory=dict)
+    invitation: Invitation | None = None
+    revoked_invitation_token: str = ""
 
     def url_kwargs(self) -> dict[str, Any]:
         return {
             "org": self.org.slug,
             "site_id": self.sites["main"].id,
             "membership_id": self.members["editor"].id,
+            "invitation_id": self.invitation.id,
         }
 
     def markers(self) -> list[str]:
@@ -109,6 +131,7 @@ class Tenant:
             values += [site.name, str(site.id)]
         for membership in self.members.values():
             values += [str(membership.id), str(membership.user.id), membership.user.email]
+        values += [str(self.invitation.id), self.invitation.email]
         return values
 
     def snapshot(self) -> dict[str, Any]:
@@ -118,6 +141,7 @@ class Tenant:
             "sites": list(Site.objects.for_org(org).order_by("id").values()),
             "members": list(Membership.objects.for_org(org).order_by("id").values()),
             "site_roles": list(SiteRole.objects.for_org(org).order_by("id").values()),
+            "invitations": list(Invitation.objects.for_org(org).order_by("id").values()),
             "audit": AuditLog.objects.for_org(org).count(),
         }
 
@@ -137,6 +161,22 @@ def build_tenant(label: str) -> Tenant:
     SiteRoleFactory(membership=site_only, site=tenant.sites["main"], role=Role.EDITOR)
     SiteRoleFactory(membership=site_only, site=tenant.sites["events"], role=Role.EVENT_STAFF)
     tenant.members["site_only"] = site_only
+    tenant.invitation = InvitationFactory(
+        organization=org,
+        email=f"invitee-{label}@example.com",
+        org_role=None,
+        site_roles=[{"site_id": str(tenant.sites["events"].id), "role": "event_staff"}],
+        invited_by=tenant.members["owner"].user,
+    )
+    token, token_hash = new_invitation_token()
+    InvitationFactory(
+        organization=org,
+        email=f"revoked-{label}@example.com",
+        token_hash=token_hash,
+        revoked_at=timezone.now(),
+        invited_by=tenant.members["owner"].user,
+    )
+    tenant.revoked_invitation_token = token
     return tenant
 
 
@@ -264,10 +304,45 @@ def _view_methods(pattern: URLPattern) -> set[str]:
 def test_every_manage_route_is_registered():
     routes = set(_manage_routes())
     registered = {endpoint.name for endpoint in ENDPOINTS}
+    listed = registered | set(TOKEN_ENDPOINTS) | set(EXEMPT)
 
-    assert routes - registered - set(EXEMPT) == set(), "Register these in ENDPOINTS"
-    assert (registered | set(EXEMPT)) - routes == set(), "Stale entries: no such route"
-    assert not registered & set(EXEMPT)
+    assert routes - listed == set(), "Register these in ENDPOINTS or TOKEN_ENDPOINTS"
+    assert listed - routes == set(), "Stale entries: no such route"
+    assert len(listed) == len(registered) + len(TOKEN_ENDPOINTS) + len(EXEMPT)
+
+
+@pytest.mark.parametrize("name", sorted(TOKEN_ENDPOINTS))
+def test_token_endpoint_methods_match_the_view(name):
+    assert _view_methods(_manage_routes()[name]) == {TOKEN_ENDPOINTS[name]}
+
+
+TOKEN_CASES = [
+    (name, token_kind, actor)
+    for name in sorted(TOKEN_ENDPOINTS)
+    for token_kind in ("random", "b-revoked")
+    for actor in ACTORS
+]
+
+
+@pytest.mark.parametrize(
+    ("name", "token_kind", "actor"), TOKEN_CASES, ids=[":".join(case) for case in TOKEN_CASES]
+)
+def test_token_route_reveals_nothing_without_a_valid_token(name, token_kind, actor, world, browser):
+    browser.force_login(world.a.members[actor].user)
+    token = "A" * 43 if token_kind == "random" else world.b.revoked_invitation_token
+    before = (world.a.snapshot(), world.b.snapshot())
+
+    response = _send(browser, TOKEN_ENDPOINTS[name], reverse(name, kwargs={"token": token}), None)
+
+    if token_kind == "random":
+        assert response.status_code == 404
+        assert response.json() == NOT_FOUND
+    else:
+        assert response.status_code == 410
+        assert response.json()["error"]["details"] == {"status": "revoked"}
+    body = response.content.decode()
+    assert [marker for marker in world.b.markers() if marker in body] == []
+    assert (world.a.snapshot(), world.b.snapshot()) == before
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda e: e.name)

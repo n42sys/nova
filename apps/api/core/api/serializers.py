@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.models import SITE_ROLE_CHOICES, Organization, Role, Site
+from core.models import SITE_ROLE_CHOICES, Invitation, Organization, Role, Site
 
 
 class SiteRoleSummarySerializer(serializers.Serializer):
@@ -103,3 +103,48 @@ class AuditLogEntrySerializer(serializers.Serializer):
 class AuditLogPageSerializer(serializers.Serializer):
     results = AuditLogEntrySerializer(many=True, source="items")
     next_cursor = serializers.CharField(allow_null=True)
+
+
+class InvitationSiteRoleSerializer(serializers.Serializer):
+    site_id = serializers.UUIDField()
+    role = serializers.ChoiceField(choices=SITE_ROLE_CHOICES)
+
+
+class InvitationSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    email = serializers.EmailField()
+    org_role = serializers.ChoiceField(choices=Role.choices, allow_null=True)
+    site_roles = InvitationSiteRoleSerializer(many=True)
+    status = serializers.ChoiceField(choices=Invitation.Status.choices)
+    invited_by = UserSummarySerializer(allow_null=True)
+    expires_at = serializers.DateTimeField()
+    accepted_at = serializers.DateTimeField(allow_null=True)
+    revoked_at = serializers.DateTimeField(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
+class InvitationCreateSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    org_role = serializers.ChoiceField(choices=Role.choices, allow_null=True, required=False)
+    site_roles = InvitationSiteRoleSerializer(many=True, required=False)
+
+
+class InvitationPreviewOrganizationSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    slug = serializers.CharField()
+
+
+class InvitationPreviewSiteRoleSerializer(serializers.Serializer):
+    site_id = serializers.UUIDField()
+    site_name = serializers.CharField()
+    role = serializers.ChoiceField(choices=SITE_ROLE_CHOICES)
+
+
+class InvitationPreviewSerializer(serializers.Serializer):
+    organization = InvitationPreviewOrganizationSerializer()
+    email = serializers.EmailField()
+    invited_by_name = serializers.CharField(allow_null=True)
+    org_role = serializers.ChoiceField(choices=Role.choices, allow_null=True)
+    site_roles = InvitationPreviewSiteRoleSerializer(many=True)
+    expires_at = serializers.DateTimeField()
+    account_exists = serializers.BooleanField()

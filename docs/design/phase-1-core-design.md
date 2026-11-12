@@ -27,7 +27,7 @@ Nova uses one shared Postgres schema with an `organization_id` on every tenant-o
 **Scoping rules**
 
 1. Every tenant-owned model inherits `TenantModel`, which carries `organization` (FK, indexed, non-null).
-2. Its `objects` manager refuses unscoped queries: code must call `.for_org(org)`. The `unscoped` manager exists for migrations, management commands and tasks only, and is grepped for in review.
+2. Its `objects` manager refuses unscoped queries: code must call `.for_org(org)`. The `unscoped` manager exists for migrations, management commands and tasks, plus one request-path module, `core/selectors/token_resolution.py`, which resolves secret tokens (invitations, API tokens) that arrive without an organization. A test fails if any other request-path module uses it.
 3. The current organization is resolved once per request (from the URL for the management API, from the token for the delivery API) and passed explicitly into services. No thread-local magic.
 4. Site-owned data carries both `organization` and `site`; services verify the site belongs to that organization.
 5. Unique constraints are per tenant, e.g. `UniqueConstraint(fields=["site", "slug"])`, never a global unique slug.

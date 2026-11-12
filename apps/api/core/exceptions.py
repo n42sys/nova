@@ -45,6 +45,14 @@ class Conflict(NovaError):
     default_message = "Conflict."
 
 
+class Gone(NovaError):
+    """A resource that existed but can no longer be used, e.g. an expired invitation."""
+
+    status_code = status.HTTP_410_GONE
+    code = "gone"
+    default_message = "No longer available."
+
+
 def _error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "details": details}}
 

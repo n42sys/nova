@@ -157,5 +157,6 @@ SPECTACULAR_SETTINGS = {
         "SiteRoleEnum": "core.models.SITE_ROLE_CHOICES",
         "OrganizationStatusEnum": "core.models.Organization.Status",
         "SiteStatusEnum": "core.models.Site.Status",
+        "InvitationStatusEnum": "core.models.Invitation.Status",
     },
 }

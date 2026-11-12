@@ -1,5 +1,6 @@
 from core.models.audit import AppendOnlyError, AuditLog
 from core.models.base import BaseModel, TenantManager, TenantModel
+from core.models.invitation import Invitation
 from core.models.membership import SITE_ROLE_CHOICES, SITE_ROLES, Membership, Role, SiteRole
 from core.models.organization import Organization
 from core.models.site import Site
@@ -11,6 +12,7 @@ __all__ = [
     "AppendOnlyError",
     "AuditLog",
     "BaseModel",
+    "Invitation",
     "Membership",
     "Organization",
     "Role",

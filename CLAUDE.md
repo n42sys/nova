@@ -41,7 +41,7 @@ A task is not done until `ruff check`, `ruff format --check` and `pytest` all pa
 
 ## Architecture rules (do not break without asking)
 
-1. **Tenancy.** Every tenant-owned model inherits `core.models.TenantModel` (`organization` FK, guarded manager). App code queries with `Model.objects.for_org(org)`. `Model.unscoped` is only for migrations, management commands and Celery tasks that pass `org_id` explicitly. Never query a tenant model without an org filter.
+1. **Tenancy.** Every tenant-owned model inherits `core.models.TenantModel` (`organization` FK, guarded manager). App code queries with `Model.objects.for_org(org)`. `Model.unscoped` is only for migrations, management commands and Celery tasks that pass `org_id` explicitly, plus one approved request-path exception: `core/selectors/token_resolution.py`, which resolves secret tokens (invitation token hashes; API token prefixes from T8) to their object and its organization. No other request-handling module may use `.unscoped`; a test enforces this. Never query a tenant model without an org filter.
 2. **Site-owned data** carries both `organization` and `site`. Validate in the service that `site.organization_id == organization_id`.
 3. **Uniqueness is per tenant.** Use `UniqueConstraint(fields=["site", "slug"])`, never a global unique slug. Only `Organization.slug`, `User.email` and `Site.domain` are global.
 4. **Layering.** All writes and permission checks live in `<app>/services.py`. All reads live in `<app>/selectors.py` and take the org (and site where relevant) as arguments. DRF views and serializers stay thin: parse, call a service or selector, serialize. No business logic in views, serializers, signals or `save()` overrides.
@@ -76,7 +76,7 @@ A task is not done until `ruff check`, `ruff format --check` and `pytest` all pa
 
 ## Do not
 
-- Use `Model.objects.all()` or `.unscoped` in request-handling code.
+- Use `Model.objects.all()` or `.unscoped` in request-handling code (the only exception is `core/selectors/token_resolution.py`).
 - Put tokens in browser storage or return secrets from any endpoint.
 - Use Django signals for business logic.
 - Enable `django.contrib.admin` for Nova data. `User` has no `PermissionsMixin`; ops tooling goes through audited services.

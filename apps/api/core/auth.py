@@ -10,3 +10,8 @@ class SessionAuthentication(authentication.SessionAuthentication):
 
     def authenticate_header(self, request) -> str:
         return 'Session realm="api"'
+
+
+def enforce_csrf(request) -> None:
+    """Apply Django's CSRF check even for anonymous requests (DRF skips it for them)."""
+    SessionAuthentication().enforce_csrf(request)
